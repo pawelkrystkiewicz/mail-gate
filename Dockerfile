@@ -27,9 +27,10 @@ RUN addgroup --system --gid 1001 mailgate && \
     adduser --system --uid 1001 --ingroup mailgate mailgate
 USER mailgate
 
-EXPOSE 3001
+ARG PORT=3001
+EXPOSE ${PORT}
 
 ENV NODE_ENV=production
-ENV PORT=3001
+ENV PORT=${PORT}
 
 CMD ["bun", "run", "src/index.ts"]
