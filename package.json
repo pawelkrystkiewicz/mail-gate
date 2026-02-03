@@ -1,0 +1,23 @@
+{
+  "name": "mail-gate",
+  "version": "0.1.0",
+  "description": "Mailgun API compatibility middleware for alternative email providers",
+  "module": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "hono": "^4.11.7",
+    "resend": "^6.9.1"
+  }
+}

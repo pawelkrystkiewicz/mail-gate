@@ -1,0 +1,162 @@
+name: Claude Fix and PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: 'Task description for Claude'
+        required: true
+        type: string
+      branch_name:
+        description: 'Branch name (auto-generated if empty)'
+        required: false
+        type: string
+      base_branch:
+        description: 'Base branch to create PR against'
+        required: false
+        default: 'master'
+        type: string
+
+  repository_dispatch:
+    types: [claude-fix]
+
+jobs:
+  claude-fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Configure Git
+        run: |
+          git config user.name "Claude Code Bot"
+          git config user.email "claude-bot@mail-gate.dev"
+
+      - name: Claude Code Fix
+        uses: anthropics/claude-code-action@v1
+        env:
+          TASK_INPUT: ${{ github.event.inputs.task || github.event.client_payload.task }}
+          BASE_BRANCH_INPUT: ${{ github.event.inputs.base_branch || github.event.client_payload.base_branch || 'master' }}
+          BRANCH_NAME_INPUT: ${{ github.event.inputs.branch_name || github.event.client_payload.branch_name || '' }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          track_progress: true
+          prompt: |
+            ## Instructions
+            You are implementing a fix or feature for mail-gate - a Mailgun API compatibility middleware for alternative email providers.
+
+            Task from environment: Check TASK_INPUT env var
+            Base branch from environment: Check BASE_BRANCH_INPUT env var
+            Branch name from environment: Check BRANCH_NAME_INPUT env var
+
+            ### Project Context
+            mail-gate mimics the Mailgun API so Ghost CMS can use alternative providers like Resend (3,000 free emails/month) instead of paying $14+/month for Mailgun.
+
+            ### Tech Stack
+            - **Runtime**: Bun
+            - **Framework**: Hono
+            - **Language**: TypeScript
+            - **Testing**: Bun test runner
+            - **Deployment**: Docker
+
+            ### Project Structure
+            ```
+            src/
+              index.ts          # Entry point, Hono server
+              api/              # Mailgun API compatibility layer
+                routes.ts       # Route definitions
+                messages.ts     # POST /v3/:domain/messages
+                auth.ts         # Basic auth middleware
+              core/             # Core abstractions
+                types.ts        # Email, SendResult, etc.
+                provider.ts     # EmailProvider interface
+                registry.ts     # Provider registry
+                transformer.ts  # Mailgun → internal format
+              providers/        # Provider implementations
+                resend/         # Resend provider
+              utils/            # Utilities
+            test/               # Tests
+            ```
+
+            ### Step 1: Understand the Task
+            Read the TASK_INPUT environment variable to understand what needs to be done.
+
+            ### Step 2: Plan
+            Analyze the task and identify:
+            - Which files need changes
+            - What tests need updating
+            - Any dependencies to install
+
+            ### Step 3: Create Branch
+            Create a new branch from the base branch:
+            ```bash
+            git checkout -b claude/<task-slug>
+            ```
+            Use BRANCH_NAME_INPUT env var if specified, otherwise generate from task.
+
+            ### Step 4: Implement
+            Make the necessary code changes following these patterns:
+            - Keep provider interface contract
+            - Maintain Mailgun API compatibility
+            - Use proper TypeScript types (no `any`)
+            - Follow existing code patterns
+
+            ### Step 5: Verify (REQUIRED)
+            Run ALL verification steps and fix any failures:
+            ```bash
+            bun test           # All tests must pass
+            bun x tsc --noEmit # TypeScript must pass
+            ```
+            Do NOT proceed to PR if any of these fail. Fix the issues first.
+
+            ### Step 6: Commit and Push
+            ```bash
+            git add .
+            git commit -m "feat: <descriptive message>"
+            git push -u origin HEAD
+            ```
+
+            ### Step 7: Create PR
+            Use BASE_BRANCH_INPUT env var for base branch:
+            ```bash
+            gh pr create \
+              --base "$BASE_BRANCH_INPUT" \
+              --title "<clear title>" \
+              --body "## Summary
+            <what was changed and why>
+
+            ## Changes
+            - <list of changes>
+
+            ## Test Plan
+            - [ ] TypeScript passes
+            - [ ] Tests pass
+
+            ---
+            Generated by Claude Code"
+            ```
+
+            ### Code Quality Rules
+            - No `any` types - use `unknown` + type guards
+            - Maintain EmailProvider interface contract
+            - Keep Mailgun response format compatibility
+            - Add tests for new functionality
+
+          claude_args: |
+            --allowedTools "Bash(*),Edit,Write,Read,Glob,Grep"
+            --max-turns 50

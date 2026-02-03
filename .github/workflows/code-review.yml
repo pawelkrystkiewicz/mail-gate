@@ -1,0 +1,130 @@
+name: Claude PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          track_progress: true
+          prompt: |
+            Please review this pull request for mail-gate.
+
+            ## Project Context
+            mail-gate is a middleware API that mimics Mailgun, allowing Ghost CMS to use alternative email providers like Resend.
+
+            ### Tech Stack
+            - **Runtime**: Bun
+            - **Framework**: Hono (lightweight web framework)
+            - **Language**: TypeScript
+            - **Email Provider**: Resend (MVP), pluggable architecture for others
+            - **Testing**: Bun test runner
+            - **Deployment**: Docker
+
+            ### Project Structure
+            ```
+            src/
+              index.ts          # Entry point, Hono server
+              api/              # Mailgun API compatibility layer
+                routes.ts       # Route definitions
+                messages.ts     # POST /v3/:domain/messages
+                auth.ts         # Basic auth middleware
+              core/             # Core abstractions
+                types.ts        # Email, SendResult, etc.
+                provider.ts     # EmailProvider interface
+                registry.ts     # Provider registry
+                transformer.ts  # Mailgun → internal format
+              providers/        # Provider implementations
+                resend/         # Resend provider
+              utils/            # Utilities
+                batch.ts        # Batch chunking
+                logger.ts       # Logging
+            test/               # Tests
+            ```
+
+            ## Review Checklist
+
+            ### 1. Code Quality (Critical)
+            - [ ] No `any` types - use `unknown` and type guards
+            - [ ] Proper TypeScript types throughout
+            - [ ] Explicit return types where inference is unclear
+            - [ ] Clean separation of concerns (transformers, providers, API)
+
+            ### 2. Architecture
+            - [ ] Provider interface compliance
+            - [ ] Mailgun API compatibility maintained
+            - [ ] Batch chunking for provider limits
+            - [ ] Proper error handling
+
+            ### 3. Security (Block PR if violated)
+            - [ ] No hardcoded secrets or API keys
+            - [ ] Input validation for API requests
+            - [ ] No command injection vulnerabilities
+            - [ ] Basic auth properly handled
+
+            ### 4. Mailgun Compatibility
+            - [ ] Correct request parsing (multipart/form-data)
+            - [ ] Proper response format (id, message)
+            - [ ] Support for recipient variables
+            - [ ] Tag handling
+
+            ### 5. Testing
+            - [ ] Unit tests for transformers
+            - [ ] API endpoint tests
+            - [ ] Batch utility tests
+            - [ ] Edge cases covered
+
+            ## Code Style Examples
+
+            ```typescript
+            // ❌ Avoid
+            const data = response as any
+            const items = data.map(item => item.value)
+
+            // ✅ Prefer
+            const data = response as SendResult[]
+            const items = data.map((item): string => item.id)
+            ```
+
+            ```typescript
+            // ❌ Avoid - mixing concerns
+            app.post('/v3/:domain/messages', async (c) => {
+              const formData = await c.req.formData()
+              // 50 lines of logic here...
+            })
+
+            // ✅ Prefer - separate handlers
+            app.post('/v3/:domain/messages', handleSendMessage)
+            ```
+
+            ## Review Output Format
+            Use inline comments for specific code issues with:
+            - File path and line reference
+            - Severity: 🔴 Critical | 🟡 Important | 🔵 Suggestion
+            - Code example showing the fix
+
+            Post a summary comment with:
+            1. Overall assessment (Approve / Request Changes / Comment)
+            2. Critical issues (must fix before merge)
+            3. Suggestions (nice to have)
+            4. What was done well
+
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read"

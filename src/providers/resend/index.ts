@@ -1,0 +1,89 @@
+import { Resend } from "resend";
+import type { EmailProvider } from "../../core/provider";
+import type { Email, SendResult } from "../../core/types";
+import { processBatchesParallel } from "../../utils/batch";
+import { logger } from "../../utils/logger";
+import { toResendBatch } from "./transformer";
+
+export class ResendProvider implements EmailProvider {
+  readonly name = "resend";
+  readonly batchSize = 100;
+  readonly rateLimit = 10; // Resend allows 10 requests/second
+  readonly concurrency = 5; // Max parallel requests
+
+  private client: Resend;
+
+  constructor(apiKey: string) {
+    this.client = new Resend(apiKey);
+  }
+
+  async sendBatch(emails: Email[]): Promise<SendResult[]> {
+    if (emails.length === 0) return [];
+
+    const startTime = Date.now();
+    logger.info("Starting batch send", { totalEmails: emails.length });
+
+    const results = await processBatchesParallel(
+      emails,
+      this.batchSize,
+      (batch) => this.sendSingleBatch(batch),
+      {
+        concurrency: this.concurrency,
+        rateLimit: this.rateLimit,
+      }
+    );
+
+    const duration = Date.now() - startTime;
+    const successful = results.filter((r) => r.status === "queued").length;
+    const failed = results.filter((r) => r.status === "failed").length;
+
+    logger.info("Batch send complete", {
+      totalEmails: emails.length,
+      successful,
+      failed,
+      durationMs: duration,
+      emailsPerSecond: Math.round((emails.length / duration) * 1000),
+    });
+
+    return results;
+  }
+
+  private async sendSingleBatch(batch: Email[]): Promise<SendResult[]> {
+    try {
+      const resendEmails = toResendBatch(batch);
+      const response = await this.client.batch.send(resendEmails);
+
+      if (response.error) {
+        logger.error("Resend batch error", { error: response.error });
+        return batch.map(() => ({
+          id: "",
+          status: "failed" as const,
+          error: response.error?.message ?? "Unknown error",
+        }));
+      }
+
+      if (response.data) {
+        logger.debug("Batch sent", { count: response.data.length });
+        return response.data.map((r) => ({
+          id: r.id,
+          status: "queued" as const,
+        }));
+      }
+
+      return batch.map(() => ({
+        id: "",
+        status: "failed" as const,
+        error: "No response data",
+      }));
+    } catch (error) {
+      logger.error("Resend batch exception", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return batch.map(() => ({
+        id: "",
+        status: "failed" as const,
+        error: error instanceof Error ? error.message : "Unknown error",
+      }));
+    }
+  }
+}

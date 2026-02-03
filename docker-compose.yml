@@ -1,0 +1,24 @@
+services:
+  mail-gate:
+    build: .
+    container_name: mail-gate
+    ports:
+      - "3001:3001"
+    environment:
+      - MAIL_PROVIDER=resend
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - PORT=3001
+      - LOG_LEVEL=info
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - mail-network
+
+networks:
+  mail-network:
+    driver: bridge
