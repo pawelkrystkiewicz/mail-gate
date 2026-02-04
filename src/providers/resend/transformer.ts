@@ -1,15 +1,7 @@
+import type { CreateEmailOptions } from "resend";
 import type { Email } from "../../core/types";
 
-export interface ResendEmail {
-  from: string;
-  to: string[];
-  subject: string;
-  html?: string;
-  text?: string;
-  tags?: Array<{ name: string; value: string }>;
-}
-
-export function toResendFormat(email: Email): ResendEmail {
+export function toResendFormat(email: Email): CreateEmailOptions {
   return {
     from: email.from,
     to: email.to,
@@ -17,9 +9,9 @@ export function toResendFormat(email: Email): ResendEmail {
     html: email.html,
     text: email.text,
     tags: email.tags?.map((tag) => ({ name: "tag", value: tag })),
-  };
+  } as CreateEmailOptions;
 }
 
-export function toResendBatch(emails: Email[]): ResendEmail[] {
+export function toResendBatch(emails: Email[]): CreateEmailOptions[] {
   return emails.map(toResendFormat);
 }

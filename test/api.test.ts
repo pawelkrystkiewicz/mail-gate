@@ -76,13 +76,13 @@ describe("API endpoints", () => {
 
     expect(res.status).toBe(200);
 
-    const json = await res.json();
+    const json = (await res.json()) as { message: string; id: string };
     expect(json.message).toBe("Queued. Thank you.");
     expect(json.id).toContain("@test.com");
 
     expect(mockProvider.sentEmails).toHaveLength(1);
-    expect(mockProvider.sentEmails[0].from).toBe("sender@test.com");
-    expect(mockProvider.sentEmails[0].to).toEqual(["recipient@example.com"]);
+    expect(mockProvider.sentEmails[0]!.from).toBe("sender@test.com");
+    expect(mockProvider.sentEmails[0]!.to).toEqual(["recipient@example.com"]);
   });
 
   test("returns 400 for missing required fields", async () => {

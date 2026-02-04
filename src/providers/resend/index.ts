@@ -63,8 +63,9 @@ export class ResendProvider implements EmailProvider {
       }
 
       if (response.data) {
-        logger.debug("Batch sent", { count: response.data.length });
-        return response.data.map((r) => ({
+        const items = response.data.data;
+        logger.debug("Batch sent", { count: items.length });
+        return items.map((r) => ({
           id: r.id,
           status: "queued" as const,
         }));
