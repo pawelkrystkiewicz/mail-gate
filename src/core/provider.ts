@@ -11,10 +11,10 @@ export interface EmailProvider {
   readonly batchSize: number
   readonly rateLimit: number
 
-  sendBatch(emails: Email[]): Promise<SendResult[]>
+  sendBatch(emails: Email[], apiKey: string): Promise<SendResult[]>
 
-  getEvents?(options: EventQuery): Promise<EmailEvent[]>
+  getEvents?(options: EventQuery, apiKey: string): Promise<EmailEvent[]>
 
-  getSuppressions?(): Promise<Suppression[]>
-  removeSuppression?(email: string): Promise<void>
+  getSuppressions?(apiKey: string): Promise<Suppression[]>
+  removeSuppression?(email: string, apiKey: string): Promise<void>
 }

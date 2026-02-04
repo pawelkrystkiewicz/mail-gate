@@ -11,22 +11,17 @@ export class ResendProvider implements EmailProvider {
   readonly rateLimit = 10 // Resend allows 10 requests/second
   readonly concurrency = 5 // Max parallel requests
 
-  private client: Resend
-
-  constructor(apiKey: string) {
-    this.client = new Resend(apiKey)
-  }
-
-  async sendBatch(emails: Email[]): Promise<SendResult[]> {
+  async sendBatch(emails: Email[], apiKey: string): Promise<SendResult[]> {
     if (emails.length === 0) return []
 
+    const client = new Resend(apiKey)
     const startTime = Date.now()
     logger.info('Starting batch send', { totalEmails: emails.length })
 
     const results = await processBatchesParallel(
       emails,
       this.batchSize,
-      batch => this.sendSingleBatch(batch),
+      batch => this.sendSingleBatch(client, batch),
       {
         concurrency: this.concurrency,
         rateLimit: this.rateLimit,
@@ -48,10 +43,13 @@ export class ResendProvider implements EmailProvider {
     return results
   }
 
-  private async sendSingleBatch(batch: Email[]): Promise<SendResult[]> {
+  private async sendSingleBatch(
+    client: Resend,
+    batch: Email[],
+  ): Promise<SendResult[]> {
     try {
       const resendEmails = toResendBatch(batch)
-      const response = await this.client.batch.send(resendEmails)
+      const response = await client.batch.send(resendEmails)
 
       if (response.error) {
         logger.error('Resend batch error', { error: response.error })

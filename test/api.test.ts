@@ -11,9 +11,11 @@ class MockProvider implements EmailProvider {
   readonly batchSize = 100
   readonly rateLimit = 10
   public sentEmails: Email[] = []
+  public lastApiKey: string | null = null
 
-  async sendBatch(emails: Email[]): Promise<SendResult[]> {
+  async sendBatch(emails: Email[], apiKey: string): Promise<SendResult[]> {
     this.sentEmails.push(...emails)
+    this.lastApiKey = apiKey
     return emails.map((_, i) => ({
       id: `mock-id-${i}`,
       status: 'queued' as const,
@@ -22,6 +24,7 @@ class MockProvider implements EmailProvider {
 
   reset() {
     this.sentEmails = []
+    this.lastApiKey = null
   }
 }
 
@@ -31,7 +34,6 @@ describe('API endpoints', () => {
 
   beforeAll(() => {
     registry.register(mockProvider)
-    process.env.MAIL_PROVIDER = 'mock'
 
     app = new Hono()
     const api = createApiRoutes()
@@ -69,7 +71,7 @@ describe('API endpoints', () => {
     const res = await app.request('/v3/test.com/messages', {
       method: 'POST',
       headers: {
-        Authorization: `Basic ${btoa('api:test-key')}`,
+        Authorization: `Basic ${btoa('mock:test-key')}`,
       },
       body: formData,
     })
@@ -93,7 +95,7 @@ describe('API endpoints', () => {
     const res = await app.request('/v3/test.com/messages', {
       method: 'POST',
       headers: {
-        Authorization: `Basic ${btoa('api:test-key')}`,
+        Authorization: `Basic ${btoa('mock:test-key')}`,
       },
       body: formData,
     })

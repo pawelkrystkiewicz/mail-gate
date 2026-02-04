@@ -62,20 +62,14 @@ export async function handleSendMessage(c: Context) {
     // Transform to internal format
     const emails = mailgunToInternal(mailgunRequest)
 
-    // Get configured provider
-    const providerName = process.env.MAIL_PROVIDER ?? 'resend'
-    if (!registry.has(providerName)) {
-      logger.error('Provider not configured', { provider: providerName })
-      return c.json(
-        { message: `Provider "${providerName}" not configured` },
-        500,
-      )
-    }
+    // Get provider and API key from context (set by auth middleware)
+    const providerName = c.get('provider') as string
+    const apiKey = c.get('apiKey') as string
 
     const provider = registry.get(providerName)
 
-    // Send batch
-    const results = await provider.sendBatch(emails)
+    // Send batch with API key from request
+    const results = await provider.sendBatch(emails, apiKey)
 
     // Check for failures
     const failed = results.filter(r => r.status === 'failed')

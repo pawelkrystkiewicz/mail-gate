@@ -160,7 +160,7 @@ describe('UniOneProvider', () => {
   })
 
   test('uses US region by default', () => {
-    const provider = new UniOneProvider('test-api-key')
+    const provider = new UniOneProvider()
     expect(provider.name).toBe('unione')
     expect(provider.batchSize).toBe(500)
   })
@@ -179,7 +179,7 @@ describe('UniOneProvider', () => {
       ),
     ) as unknown as typeof fetch
 
-    const provider = new UniOneProvider('test-api-key')
+    const provider = new UniOneProvider()
     const email: Email = {
       from: 'sender@example.com',
       to: ['recipient@example.com'],
@@ -187,7 +187,7 @@ describe('UniOneProvider', () => {
       html: '<p>Hello</p>',
     }
 
-    const results = await provider.sendBatch([email])
+    const results = await provider.sendBatch([email], 'test-api-key')
 
     expect(results).toHaveLength(1)
     expect(results[0]!.status).toBe('queued')
@@ -208,7 +208,7 @@ describe('UniOneProvider', () => {
       ),
     ) as unknown as typeof fetch
 
-    const provider = new UniOneProvider('invalid-key')
+    const provider = new UniOneProvider()
     const email: Email = {
       from: 'sender@example.com',
       to: ['recipient@example.com'],
@@ -216,7 +216,7 @@ describe('UniOneProvider', () => {
       html: '<p>Hello</p>',
     }
 
-    const results = await provider.sendBatch([email])
+    const results = await provider.sendBatch([email], 'invalid-key')
 
     expect(results).toHaveLength(1)
     expect(results[0]!.status).toBe('failed')
@@ -240,7 +240,7 @@ describe('UniOneProvider', () => {
       ),
     ) as unknown as typeof fetch
 
-    const provider = new UniOneProvider('test-api-key')
+    const provider = new UniOneProvider()
     const email: Email = {
       from: 'sender@example.com',
       to: ['good@example.com', 'bad@example.com'],
@@ -248,7 +248,7 @@ describe('UniOneProvider', () => {
       html: '<p>Hello</p>',
     }
 
-    const results = await provider.sendBatch([email])
+    const results = await provider.sendBatch([email], 'test-api-key')
 
     // Partial success is still marked as queued since some emails went through
     expect(results).toHaveLength(1)
@@ -272,7 +272,7 @@ describe('UniOneProvider', () => {
       ),
     ) as unknown as typeof fetch
 
-    const provider = new UniOneProvider('test-api-key')
+    const provider = new UniOneProvider()
     const email: Email = {
       from: 'sender@example.com',
       to: ['bad@example.com'],
@@ -280,7 +280,7 @@ describe('UniOneProvider', () => {
       html: '<p>Hello</p>',
     }
 
-    const results = await provider.sendBatch([email])
+    const results = await provider.sendBatch([email], 'test-api-key')
 
     expect(results).toHaveLength(1)
     expect(results[0]!.status).toBe('failed')
@@ -292,7 +292,7 @@ describe('UniOneProvider', () => {
       Promise.reject(new Error('Network error')),
     ) as unknown as typeof fetch
 
-    const provider = new UniOneProvider('test-api-key')
+    const provider = new UniOneProvider()
     const email: Email = {
       from: 'sender@example.com',
       to: ['recipient@example.com'],
@@ -300,7 +300,7 @@ describe('UniOneProvider', () => {
       html: '<p>Hello</p>',
     }
 
-    const results = await provider.sendBatch([email])
+    const results = await provider.sendBatch([email], 'test-api-key')
 
     expect(results).toHaveLength(1)
     expect(results[0]!.status).toBe('failed')
@@ -308,8 +308,8 @@ describe('UniOneProvider', () => {
   })
 
   test('returns empty array for empty input', async () => {
-    const provider = new UniOneProvider('test-api-key')
-    const results = await provider.sendBatch([])
+    const provider = new UniOneProvider()
+    const results = await provider.sendBatch([], 'test-api-key')
 
     expect(results).toEqual([])
   })
@@ -330,7 +330,7 @@ describe('UniOneProvider', () => {
       )
     }) as unknown as typeof fetch
 
-    const provider = new UniOneProvider('test-api-key', 'eu')
+    const provider = new UniOneProvider('eu')
     const email: Email = {
       from: 'sender@example.com',
       to: ['recipient@example.com'],
@@ -338,7 +338,7 @@ describe('UniOneProvider', () => {
       html: '<p>Hello</p>',
     }
 
-    await provider.sendBatch([email])
+    await provider.sendBatch([email], 'test-api-key')
 
     expect(capturedUrl).toContain('eu1.unione.io')
   })
@@ -359,7 +359,7 @@ describe('UniOneProvider', () => {
       )
     }) as unknown as typeof fetch
 
-    const provider = new UniOneProvider('my-secret-key')
+    const provider = new UniOneProvider()
     const email: Email = {
       from: 'sender@example.com',
       to: ['recipient@example.com'],
@@ -367,7 +367,7 @@ describe('UniOneProvider', () => {
       html: '<p>Hello</p>',
     }
 
-    await provider.sendBatch([email])
+    await provider.sendBatch([email], 'my-secret-key')
 
     expect(capturedHeaders!.get('X-API-KEY')).toBe('my-secret-key')
     expect(capturedHeaders!.get('Content-Type')).toBe('application/json')
@@ -380,7 +380,7 @@ describe('UniOneProvider', () => {
       ),
     ) as unknown as typeof fetch
 
-    const provider = new UniOneProvider('test-api-key')
+    const provider = new UniOneProvider()
     const email: Email = {
       from: 'sender@example.com',
       to: ['recipient@example.com'],
@@ -388,7 +388,7 @@ describe('UniOneProvider', () => {
       html: '<p>Hello</p>',
     }
 
-    const results = await provider.sendBatch([email])
+    const results = await provider.sendBatch([email], 'test-api-key')
 
     expect(results).toHaveLength(1)
     expect(results[0]!.status).toBe('failed')

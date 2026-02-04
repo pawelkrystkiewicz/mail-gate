@@ -29,15 +29,13 @@ export class UniOneProvider implements EmailProvider {
   readonly batchSize = 500
   readonly rateLimit = 10
 
-  private apiKey: string
   private baseUrl: string
 
-  constructor(apiKey: string, region: UniOneRegion = 'us') {
-    this.apiKey = apiKey
+  constructor(region: UniOneRegion = 'us') {
     this.baseUrl = REGION_URLS[region]
   }
 
-  async sendBatch(emails: Email[]): Promise<SendResult[]> {
+  async sendBatch(emails: Email[], apiKey: string): Promise<SendResult[]> {
     if (emails.length === 0) return []
 
     const startTime = Date.now()
@@ -46,7 +44,7 @@ export class UniOneProvider implements EmailProvider {
     const results: SendResult[] = []
 
     for (const email of emails) {
-      const result = await this.sendSingle(email)
+      const result = await this.sendSingle(email, apiKey)
       results.push(result)
     }
 
@@ -64,7 +62,7 @@ export class UniOneProvider implements EmailProvider {
     return results
   }
 
-  private async sendSingle(email: Email): Promise<SendResult> {
+  private async sendSingle(email: Email, apiKey: string): Promise<SendResult> {
     try {
       const request = toUniOneRequest(email)
       const url = `${this.baseUrl}/en/transactional/api/v1/email/send.json`
@@ -74,7 +72,7 @@ export class UniOneProvider implements EmailProvider {
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
-          'X-API-KEY': this.apiKey,
+          'X-API-KEY': apiKey,
         },
         body: JSON.stringify(request),
       })

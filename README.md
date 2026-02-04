@@ -107,6 +107,10 @@ Ghost CMS → mail-gate (Mailgun API Layer) → Provider Adapter → Resend/UniO
 
 mail-gate implements the Mailgun API that Ghost expects, then translates requests to the format required by your chosen email provider.
 
+## Documentation
+
+- [Caveats & Known Limitations](docs/CAVEATS.md) - Provider-specific limitations and optimization notes
+
 ## License
 
 MIT

@@ -1,4 +1,5 @@
 import type { Context, Next } from 'hono'
+import { registry } from '../core/registry'
 import { logger } from '../utils/logger'
 
 export async function basicAuthMiddleware(c: Context, next: Next) {
@@ -17,16 +18,21 @@ export async function basicAuthMiddleware(c: Context, next: Next) {
   try {
     const base64Credentials = authHeader.slice(6)
     const credentials = atob(base64Credentials)
-    const [username, password] = credentials.split(':')
+    const [providerName, apiKey] = credentials.split(':')
 
-    // Mailgun uses "api" as username and the API key as password
-    if (username !== 'api' || !password) {
+    if (!providerName || !apiKey) {
       logger.warn('Invalid credentials format')
-      return c.json({ message: 'Invalid credentials' }, 401)
+      return c.json({ message: 'Invalid credentials format' }, 401)
     }
 
-    // Store the API key in context for potential use
-    c.set('apiKey', password)
+    if (!registry.has(providerName)) {
+      logger.warn('Unknown provider', { provider: providerName })
+      return c.json({ message: `Unknown provider: ${providerName}` }, 401)
+    }
+
+    // Store provider and API key in context
+    c.set('provider', providerName)
+    c.set('apiKey', apiKey)
 
     await next()
   } catch {

@@ -15,7 +15,7 @@ app.use('/*', cors())
 app.get('/health', c => {
   return c.json({
     status: 'ok',
-    provider: process.env.MAIL_PROVIDER ?? 'resend',
+    mode: 'stateless',
     providers: registry.list(),
   })
 })
@@ -24,26 +24,16 @@ app.get('/health', c => {
 const api = createApiRoutes()
 app.route('/v3', api)
 
-// Initialize providers
+// Initialize providers (stateless - no API keys stored)
 function initializeProviders() {
-  const resendApiKey = process.env.RESEND_API_KEY
-  if (resendApiKey) {
-    const resendProvider = new ResendProvider(resendApiKey)
-    registry.register(resendProvider)
-    logger.info('Registered provider: resend')
-  } else {
-    logger.warn('RESEND_API_KEY not set, Resend provider not available')
-  }
+  // Register Resend provider
+  registry.register(new ResendProvider())
+  logger.info('Registered provider: resend')
 
-  const unioneApiKey = process.env.UNIONE_API_KEY
-  if (unioneApiKey) {
-    const region = parseUniOneRegion(process.env.UNIONE_REGION)
-    const unioneProvider = new UniOneProvider(unioneApiKey, region)
-    registry.register(unioneProvider)
-    logger.info('Registered provider: unione', { region })
-  } else {
-    logger.warn('UNIONE_API_KEY not set, UniOne provider not available')
-  }
+  // Register UniOne provider with region config
+  const region = parseUniOneRegion(process.env.UNIONE_REGION)
+  registry.register(new UniOneProvider(region))
+  logger.info('Registered provider: unione', { region })
 }
 
 // Start server
@@ -52,7 +42,7 @@ const port = parseInt(process.env.PORT ?? '3001', 10)
 initializeProviders()
 
 logger.info(`mail-gate starting on port ${port}`)
-logger.info(`Active provider: ${process.env.MAIL_PROVIDER ?? 'resend'}`)
+logger.info('Running in stateless mode - API keys provided per-request')
 
 export default {
   port,
