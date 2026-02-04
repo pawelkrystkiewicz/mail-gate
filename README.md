@@ -11,6 +11,7 @@ Ghost CMS requires Mailgun for bulk email (newsletters), costing $14+/month even
 | Provider | Status | Free Tier |
 |----------|--------|-----------|
 | Resend | ✅ Ready | 3,000/month |
+| UniOne | ✅ Ready | 6,000/month |
 | Amazon SES | 📋 Planned | 62,000/month (EC2) |
 | Postmark | 📋 Planned | 100/month |
 | SendGrid | 📋 Planned | 100/day |
@@ -66,8 +67,10 @@ docker compose up -d
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `MAIL_PROVIDER` | Active email provider | `resend` |
+| `MAIL_PROVIDER` | Active email provider (`resend`, `unione`) | `resend` |
 | `RESEND_API_KEY` | Resend API key | - |
+| `UNIONE_API_KEY` | UniOne API key | - |
+| `UNIONE_REGION` | UniOne region (`us`, `eu`) | `us` |
 | `PORT` | Server port | `3001` |
 | `LOG_LEVEL` | Log level (debug/info/warn/error) | `info` |
 
@@ -99,7 +102,7 @@ bun test
 ## Architecture
 
 ```
-Ghost CMS → mail-gate (Mailgun API Layer) → Provider Adapter → Resend/SES/etc.
+Ghost CMS → mail-gate (Mailgun API Layer) → Provider Adapter → Resend/UniOne/etc.
 ```
 
 mail-gate implements the Mailgun API that Ghost expects, then translates requests to the format required by your chosen email provider.

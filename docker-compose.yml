@@ -9,6 +9,8 @@ services:
     environment:
       - MAIL_PROVIDER=${MAIL_PROVIDER:-resend}
       - RESEND_API_KEY=${RESEND_API_KEY}
+      - UNIONE_API_KEY=${UNIONE_API_KEY}
+      - UNIONE_REGION=${UNIONE_REGION:-us}
       - PORT=${PORT:-3001}
       - LOG_LEVEL=${LOG_LEVEL:-info}
     restart: unless-stopped
