@@ -1,53 +1,55 @@
-import type { Email } from "../../core/types";
-import { parseEmailAddress } from "../../utils/email";
+import type { Email } from '../../core/types'
+import { parseEmailAddress } from '../../utils/email'
 
 export interface UniOneRecipient {
-  email: string;
-  substitutions?: Record<string, unknown>;
+  email: string
+  substitutions?: Record<string, unknown>
 }
 
 export interface UniOneMessage {
-  recipients: UniOneRecipient[];
+  recipients: UniOneRecipient[]
   body: {
-    html?: string;
-    plaintext?: string;
-  };
-  subject: string;
-  from_email: string;
-  from_name?: string;
-  tags?: string[];
+    html?: string
+    plaintext?: string
+  }
+  subject: string
+  from_email: string
+  from_name?: string
+  tags?: string[]
 }
 
 export interface UniOneRequest {
-  message: UniOneMessage;
+  message: UniOneMessage
 }
 
 export interface UniOneResponse {
-  status: "success" | "error";
-  job_id?: string;
-  emails?: string[];
-  failed_emails?: Record<string, string>;
-  message?: string;
-  code?: number;
+  status: 'success' | 'error'
+  job_id?: string
+  emails?: string[]
+  failed_emails?: Record<string, string>
+  message?: string
+  code?: number
 }
 
 function buildRecipients(email: Email): UniOneRecipient[] {
-  return email.to.map((recipient) => ({
+  return email.to.map(recipient => ({
     email: recipient,
-    ...(email.variables?.[recipient] && { substitutions: email.variables[recipient] }),
-  }));
+    ...(email.variables?.[recipient] && {
+      substitutions: email.variables[recipient],
+    }),
+  }))
 }
 
-function buildBody(email: Email): UniOneMessage["body"] {
+function buildBody(email: Email): UniOneMessage['body'] {
   return {
     ...(email.html && { html: email.html }),
     ...(email.text && { plaintext: email.text }),
-  };
+  }
 }
 
 export function toUniOneFormat(email: Email): UniOneMessage {
-  const { email: from_email, name: from_name } = parseEmailAddress(email.from);
-  const tags = email.tags?.length ? email.tags : undefined;
+  const { email: from_email, name: from_name } = parseEmailAddress(email.from)
+  const tags = email.tags?.length ? email.tags : undefined
 
   return {
     recipients: buildRecipients(email),
@@ -56,9 +58,9 @@ export function toUniOneFormat(email: Email): UniOneMessage {
     from_email,
     ...(from_name && { from_name }),
     ...(tags && { tags }),
-  };
+  }
 }
 
 export function toUniOneRequest(email: Email): UniOneRequest {
-  return { message: toUniOneFormat(email) };
+  return { message: toUniOneFormat(email) }
 }

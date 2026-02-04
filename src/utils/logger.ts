@@ -1,52 +1,60 @@
-type LogLevel = "debug" | "info" | "warn" | "error";
+type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
 const LOG_LEVELS: Record<LogLevel, number> = {
   debug: 0,
   info: 1,
   warn: 2,
   error: 3,
-};
+}
+
+const isLogLevel = (value: string): value is LogLevel =>
+  value === 'debug' || value === 'info' || value === 'warn' || value === 'error'
 
 class Logger {
-  private level: LogLevel;
+  private level: LogLevel
 
   constructor() {
-    this.level = (process.env.LOG_LEVEL as LogLevel) || "info";
+    const envLevel = process.env.LOG_LEVEL
+    this.level = envLevel && isLogLevel(envLevel) ? envLevel : 'info'
   }
 
   private shouldLog(level: LogLevel): boolean {
-    return LOG_LEVELS[level] >= LOG_LEVELS[this.level];
+    return LOG_LEVELS[level] >= LOG_LEVELS[this.level]
   }
 
-  private format(level: LogLevel, message: string, meta?: Record<string, unknown>): string {
-    const timestamp = new Date().toISOString();
-    const metaStr = meta ? ` ${JSON.stringify(meta)}` : "";
-    return `[${timestamp}] [${level.toUpperCase()}] ${message}${metaStr}`;
+  private format(
+    level: LogLevel,
+    message: string,
+    meta?: Record<string, unknown>,
+  ): string {
+    const timestamp = new Date().toISOString()
+    const metaStr = meta ? ` ${JSON.stringify(meta)}` : ''
+    return `[${timestamp}] [${level.toUpperCase()}] ${message}${metaStr}`
   }
 
   debug(message: string, meta?: Record<string, unknown>): void {
-    if (this.shouldLog("debug")) {
-      console.debug(this.format("debug", message, meta));
+    if (this.shouldLog('debug')) {
+      console.debug(this.format('debug', message, meta))
     }
   }
 
   info(message: string, meta?: Record<string, unknown>): void {
-    if (this.shouldLog("info")) {
-      console.info(this.format("info", message, meta));
+    if (this.shouldLog('info')) {
+      console.info(this.format('info', message, meta))
     }
   }
 
   warn(message: string, meta?: Record<string, unknown>): void {
-    if (this.shouldLog("warn")) {
-      console.warn(this.format("warn", message, meta));
+    if (this.shouldLog('warn')) {
+      console.warn(this.format('warn', message, meta))
     }
   }
 
   error(message: string, meta?: Record<string, unknown>): void {
-    if (this.shouldLog("error")) {
-      console.error(this.format("error", message, meta));
+    if (this.shouldLog('error')) {
+      console.error(this.format('error', message, meta))
     }
   }
 }
 
-export const logger = new Logger();
+export const logger = new Logger()
