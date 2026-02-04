@@ -13,11 +13,11 @@ UniOne's API supports up to **500 recipients per single API request**, which ena
 - If a single email has multiple recipients in the `to` field, they are correctly batched into one UniOne API call
 - Multiple `Email` objects with identical content are NOT consolidated into a single API call
 
-**Code reference:** [src/providers/unione/index.ts:48-51](../src/providers/unione/index.ts#L48-L51)
+**Code reference:** [src/providers/unione/index.ts:46-49](../src/providers/unione/index.ts#L46-L49)
 
 ```typescript
 for (const email of emails) {
-  const result = await this.sendSingle(email)  // Sequential, not batched
+  const result = await this.sendSingle(email, apiKey)  // Sequential, not batched
   results.push(result)
 }
 ```

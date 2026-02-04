@@ -66,12 +66,11 @@ Copy `.env.example` to `.env` and configure:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `MAIL_PROVIDER` | No | `resend` (default) or `unione` |
-| `RESEND_API_KEY` | If using Resend | API key from resend.com |
-| `UNIONE_API_KEY` | If using UniOne | API key from UniOne |
-| `UNIONE_REGION` | No | `us` (default) or `eu` |
+| `UNIONE_REGION` | No | `eu` (default) or `us` |
 | `PORT` | No | Server port (default: 3001) |
 | `LOG_LEVEL` | No | `debug`, `info`, `warn`, `error` |
+
+**Note:** API keys are provided per-request via Basic Auth (`provider:apikey` format), not via environment variables.
 
 ## Key Files
 
@@ -81,24 +80,38 @@ Copy `.env.example` to `.env` and configure:
 - [src/providers/resend/index.ts](src/providers/resend/index.ts) - Resend implementation
 - [src/providers/unione/index.ts](src/providers/unione/index.ts) - UniOne implementation
 
+## Authentication
+
+mail-gate uses stateless authentication. API keys are provided per-request via Basic Auth:
+
+```http
+Authorization: Basic base64(provider:apikey)
+```
+
+Examples: `resend:re_xxxxxxxxxxxx` or `unione:your-api-key`
+
 ## API Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Health check (no auth) |
-| POST | `/v3/:domain/messages` | Send email (Mailgun-compatible) |
+| Method | Path                    | Auth | Description                      |
+|--------|-------------------------|------|----------------------------------|
+| GET    | `/health`               | No   | Health check                     |
+| POST   | `/v3/:domain/messages`  | Yes  | Send email (Mailgun-compatible)  |
 
 ## Adding a New Provider
 
 1. Create `src/providers/<name>/index.ts` implementing `EmailProvider`
 2. Create `src/providers/<name>/transformer.ts` for format conversion
 3. Register in `src/index.ts` during initialization
-4. Add environment variables to `.env.example`
-5. Update `docker-compose.yml` with new env vars
+4. Add any region/config variables to `.env.example` (API keys are per-request)
+5. Update README.md with provider documentation
 
 ## Testing
 
 Tests use Bun's built-in test runner. Key test files:
+
 - `test/api.test.ts` - API endpoint tests
 - `test/transformer.test.ts` - Format transformation tests
 - `test/unione.test.ts` - UniOne provider tests
+- `test/batch.test.ts` - Batch processing tests
+- `test/email.test.ts` - Email parsing tests
+- `test/performance.test.ts` - Performance benchmarks

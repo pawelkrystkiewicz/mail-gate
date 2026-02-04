@@ -159,7 +159,7 @@ describe('UniOneProvider', () => {
     globalThis.fetch = originalFetch
   })
 
-  test('uses US region by default', () => {
+  test('uses EU region by default', () => {
     const provider = new UniOneProvider()
     expect(provider.name).toBe('unione')
     expect(provider.batchSize).toBe(500)
@@ -397,8 +397,8 @@ describe('UniOneProvider', () => {
 })
 
 describe('parseUniOneRegion', () => {
-  test('returns us for undefined', () => {
-    expect(parseUniOneRegion(undefined)).toBe('us')
+  test('returns eu for undefined', () => {
+    expect(parseUniOneRegion(undefined)).toBe('eu')
   })
 
   test("returns us for 'us'", () => {
@@ -409,11 +409,11 @@ describe('parseUniOneRegion', () => {
     expect(parseUniOneRegion('eu')).toBe('eu')
   })
 
-  test('returns us for invalid value', () => {
-    expect(parseUniOneRegion('invalid')).toBe('us')
+  test('returns eu for invalid value', () => {
+    expect(parseUniOneRegion('invalid')).toBe('eu')
   })
 
-  test('returns us for empty string', () => {
-    expect(parseUniOneRegion('')).toBe('us')
+  test('returns eu for empty string', () => {
+    expect(parseUniOneRegion('')).toBe('eu')
   })
 })

@@ -17,11 +17,11 @@ function isUniOneResponse(data: unknown): data is UniOneResponse {
 }
 
 export function parseUniOneRegion(value: string | undefined): UniOneRegion {
-  if (value === 'eu') return 'eu'
-  if (value && value !== 'us') {
-    logger.warn(`Invalid UNIONE_REGION "${value}", defaulting to "us"`)
+  if (value === 'us') return 'us'
+  if (value && value !== 'eu') {
+    logger.warn(`Invalid UNIONE_REGION "${value}", defaulting to "eu"`)
   }
-  return 'us'
+  return 'eu'
 }
 
 export class UniOneProvider implements EmailProvider {
@@ -31,7 +31,7 @@ export class UniOneProvider implements EmailProvider {
 
   private baseUrl: string
 
-  constructor(region: UniOneRegion = 'us') {
+  constructor(region: UniOneRegion = 'eu') {
     this.baseUrl = REGION_URLS[region]
   }
 
