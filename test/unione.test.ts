@@ -48,8 +48,8 @@ describe("UniOne transformer", () => {
       const result = toUniOneFormat(email);
 
       expect(result.recipients).toHaveLength(2);
-      expect(result.recipients[0].email).toBe("one@example.com");
-      expect(result.recipients[1].email).toBe("two@example.com");
+      expect(result.recipients[0]!.email).toBe("one@example.com");
+      expect(result.recipients[1]!.email).toBe("two@example.com");
     });
 
     test("includes recipient substitutions from variables", () => {
@@ -65,7 +65,7 @@ describe("UniOne transformer", () => {
 
       const result = toUniOneFormat(email);
 
-      expect(result.recipients[0].substitutions).toEqual({ name: "John", id: 123 });
+      expect(result.recipients[0]!.substitutions).toEqual({ name: "John", id: 123 });
     });
 
     test("includes tags when present", () => {
@@ -171,7 +171,7 @@ describe("UniOneProvider", () => {
           { status: 200 }
         )
       )
-    );
+    ) as unknown as typeof fetch;
 
     const provider = new UniOneProvider("test-api-key");
     const email: Email = {
@@ -184,8 +184,8 @@ describe("UniOneProvider", () => {
     const results = await provider.sendBatch([email]);
 
     expect(results).toHaveLength(1);
-    expect(results[0].status).toBe("queued");
-    expect(results[0].id).toBe("job-123");
+    expect(results[0]!.status).toBe("queued");
+    expect(results[0]!.id).toBe("job-123");
   });
 
   test("handles API error response", async () => {
@@ -200,7 +200,7 @@ describe("UniOneProvider", () => {
           { status: 401 }
         )
       )
-    );
+    ) as unknown as typeof fetch;
 
     const provider = new UniOneProvider("invalid-key");
     const email: Email = {
@@ -213,8 +213,8 @@ describe("UniOneProvider", () => {
     const results = await provider.sendBatch([email]);
 
     expect(results).toHaveLength(1);
-    expect(results[0].status).toBe("failed");
-    expect(results[0].error).toContain("Invalid API key");
+    expect(results[0]!.status).toBe("failed");
+    expect(results[0]!.error).toContain("Invalid API key");
   });
 
   test("handles partial failures", async () => {
@@ -232,7 +232,7 @@ describe("UniOneProvider", () => {
           { status: 200 }
         )
       )
-    );
+    ) as unknown as typeof fetch;
 
     const provider = new UniOneProvider("test-api-key");
     const email: Email = {
@@ -246,7 +246,7 @@ describe("UniOneProvider", () => {
 
     // Partial success is still marked as queued since some emails went through
     expect(results).toHaveLength(1);
-    expect(results[0].status).toBe("queued");
+    expect(results[0]!.status).toBe("queued");
   });
 
   test("handles all recipients failed", async () => {
@@ -264,7 +264,7 @@ describe("UniOneProvider", () => {
           { status: 200 }
         )
       )
-    );
+    ) as unknown as typeof fetch;
 
     const provider = new UniOneProvider("test-api-key");
     const email: Email = {
@@ -277,12 +277,12 @@ describe("UniOneProvider", () => {
     const results = await provider.sendBatch([email]);
 
     expect(results).toHaveLength(1);
-    expect(results[0].status).toBe("failed");
-    expect(results[0].error).toContain("All recipients failed");
+    expect(results[0]!.status).toBe("failed");
+    expect(results[0]!.error).toContain("All recipients failed");
   });
 
   test("handles network error", async () => {
-    globalThis.fetch = mock(() => Promise.reject(new Error("Network error")));
+    globalThis.fetch = mock(() => Promise.reject(new Error("Network error"))) as unknown as typeof fetch;
 
     const provider = new UniOneProvider("test-api-key");
     const email: Email = {
@@ -295,8 +295,8 @@ describe("UniOneProvider", () => {
     const results = await provider.sendBatch([email]);
 
     expect(results).toHaveLength(1);
-    expect(results[0].status).toBe("failed");
-    expect(results[0].error).toBe("Network error");
+    expect(results[0]!.status).toBe("failed");
+    expect(results[0]!.error).toBe("Network error");
   });
 
   test("returns empty array for empty input", async () => {
@@ -320,7 +320,7 @@ describe("UniOneProvider", () => {
           { status: 200 }
         )
       );
-    });
+    }) as unknown as typeof fetch;
 
     const provider = new UniOneProvider("test-api-key", "eu");
     const email: Email = {
@@ -349,7 +349,7 @@ describe("UniOneProvider", () => {
           { status: 200 }
         )
       );
-    });
+    }) as unknown as typeof fetch;
 
     const provider = new UniOneProvider("my-secret-key");
     const email: Email = {
@@ -361,7 +361,7 @@ describe("UniOneProvider", () => {
 
     await provider.sendBatch([email]);
 
-    expect(capturedHeaders?.get("X-API-KEY")).toBe("my-secret-key");
-    expect(capturedHeaders?.get("Content-Type")).toBe("application/json");
+    expect(capturedHeaders!.get("X-API-KEY")).toBe("my-secret-key");
+    expect(capturedHeaders!.get("Content-Type")).toBe("application/json");
   });
 });
