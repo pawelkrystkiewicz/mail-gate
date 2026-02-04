@@ -1,28 +1,31 @@
-import type { Email, MailgunRequest } from "./types";
+import type { Email, MailgunRequest } from './types'
 
 export function parseMailgunFormData(formData: FormData): MailgunRequest {
-  const from = formData.get("from") as string;
-  const subject = formData.get("subject") as string;
-  const html = formData.get("html") as string | null;
-  const text = formData.get("text") as string | null;
+  const from = formData.get('from') as string
+  const subject = formData.get('subject') as string
+  const html = formData.get('html') as string | null
+  const text = formData.get('text') as string | null
 
   // Handle multiple 'to' values
-  const toValues = formData.getAll("to") as string[];
-  const to = toValues.flatMap((val) => val.split(",").map((e) => e.trim()));
+  const toValues = formData.getAll('to') as string[]
+  const to = toValues.flatMap(val => val.split(',').map(e => e.trim()))
 
   // Handle tags (o:tag)
-  const tags = formData.getAll("o:tag") as string[];
+  const tags = formData.getAll('o:tag') as string[]
 
   // Tracking options
-  const trackingClicks = formData.get("o:tracking-clicks") === "yes";
-  const trackingOpens = formData.get("o:tracking-opens") === "yes";
+  const trackingClicks = formData.get('o:tracking-clicks') === 'yes'
+  const trackingOpens = formData.get('o:tracking-opens') === 'yes'
 
   // Recipient variables (JSON string)
-  const recipientVarsStr = formData.get("recipient-variables") as string | null;
-  let recipientVariables: Record<string, Record<string, unknown>> | undefined;
+  const recipientVarsStr = formData.get('recipient-variables') as string | null
+  let recipientVariables: Record<string, Record<string, unknown>> | undefined
   if (recipientVarsStr) {
     try {
-      recipientVariables = JSON.parse(recipientVarsStr);
+      recipientVariables = JSON.parse(recipientVarsStr) as Record<
+        string,
+        Record<string, unknown>
+      >
     } catch {
       // Ignore invalid JSON
     }
@@ -38,23 +41,29 @@ export function parseMailgunFormData(formData: FormData): MailgunRequest {
     trackingClicks,
     trackingOpens,
     recipientVariables,
-  };
+  }
 }
 
 export function mailgunToInternal(request: MailgunRequest): Email[] {
-  const { from, to, subject, html, text, tags, recipientVariables } = request;
+  const { from, to, subject, html, text, tags, recipientVariables } = request
 
   // If recipient variables exist, create individual emails for personalization
   if (recipientVariables && Object.keys(recipientVariables).length > 0) {
-    return to.map((recipient) => ({
+    return to.map(recipient => ({
       from,
       to: [recipient],
       subject,
-      html: html ? replaceVariables(html, recipientVariables[recipient] ?? {}) : undefined,
-      text: text ? replaceVariables(text, recipientVariables[recipient] ?? {}) : undefined,
+      html: html
+        ? replaceVariables(html, recipientVariables[recipient] ?? {})
+        : undefined,
+      text: text
+        ? replaceVariables(text, recipientVariables[recipient] ?? {})
+        : undefined,
       tags,
-      variables: recipientVariables[recipient] ? { [recipient]: recipientVariables[recipient] } : undefined,
-    }));
+      variables: recipientVariables[recipient]
+        ? { [recipient]: recipientVariables[recipient] }
+        : undefined,
+    }))
   }
 
   // Batch mode: single email to multiple recipients (if provider supports it)
@@ -67,15 +76,18 @@ export function mailgunToInternal(request: MailgunRequest): Email[] {
       text,
       tags,
     },
-  ];
+  ]
 }
 
-function replaceVariables(content: string, variables: Record<string, unknown>): string {
-  let result = content;
+function replaceVariables(
+  content: string,
+  variables: Record<string, unknown>,
+): string {
+  let result = content
   for (const [key, value] of Object.entries(variables)) {
     // Mailgun uses %recipient.key% syntax
-    const pattern = new RegExp(`%recipient\\.${key}%`, "g");
-    result = result.replace(pattern, String(value));
+    const pattern = new RegExp(`%recipient\\.${key}%`, 'g')
+    result = result.replace(pattern, String(value))
   }
-  return result;
+  return result
 }

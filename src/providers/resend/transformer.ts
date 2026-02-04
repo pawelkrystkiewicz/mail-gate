@@ -1,7 +1,14 @@
 import type { CreateEmailOptions } from 'resend'
 import type { Email } from '../../core/types'
 
-export function toResendFormat({ from, subject, to, html, tags, text }: Email): CreateEmailOptions {
+export function toResendFormat({
+  from,
+  subject,
+  to,
+  html,
+  tags,
+  text,
+}: Email): CreateEmailOptions {
   const base = {
     from,
     to,
