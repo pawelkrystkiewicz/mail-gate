@@ -1,6 +1,6 @@
 import { Resend } from 'resend'
 import type { EmailProvider } from '../../core/provider'
-import type { Email, SendResult } from '../../core/types'
+import type { Email, SendResult, ProviderCapabilities } from '../../core/types'
 import { processBatchesParallel } from '../../utils/batch'
 import { logger } from '../../utils/logger'
 import { toResendBatch } from './transformer'
@@ -10,6 +10,12 @@ export class ResendProvider implements EmailProvider {
   readonly batchSize = 100
   readonly rateLimit = 10 // Resend allows 10 requests/second
   readonly concurrency = 5 // Max parallel requests
+  readonly capabilities: ProviderCapabilities = {
+    batch: true,
+    tracking: true,
+    events: false,
+    suppressions: false,
+  }
 
   async sendBatch(emails: Email[], apiKey: string): Promise<SendResult[]> {
     if (emails.length === 0) return []

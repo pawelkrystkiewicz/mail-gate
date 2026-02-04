@@ -4,12 +4,14 @@ import type {
   EmailEvent,
   EventQuery,
   Suppression,
+  ProviderCapabilities,
 } from './types'
 
 export interface EmailProvider {
   readonly name: string
   readonly batchSize: number
   readonly rateLimit: number
+  readonly capabilities: ProviderCapabilities
 
   sendBatch(emails: Email[], apiKey: string): Promise<SendResult[]>
 

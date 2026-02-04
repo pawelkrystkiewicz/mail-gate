@@ -1,5 +1,5 @@
 import type { EmailProvider } from '../../core/provider'
-import type { Email, SendResult } from '../../core/types'
+import type { Email, SendResult, ProviderCapabilities } from '../../core/types'
 import { logger } from '../../utils/logger'
 import { toUniOneRequest, type UniOneResponse } from './transformer'
 
@@ -28,6 +28,12 @@ export class UniOneProvider implements EmailProvider {
   readonly name = 'unione'
   readonly batchSize = 500
   readonly rateLimit = 10
+  readonly capabilities: ProviderCapabilities = {
+    batch: true,
+    tracking: true,
+    events: false,
+    suppressions: false,
+  }
 
   private baseUrl: string
 

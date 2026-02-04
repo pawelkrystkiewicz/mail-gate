@@ -1,0 +1,179 @@
+import type { Context } from 'hono'
+import { registry } from '../../../core/registry'
+import type { UniversalEmailResponse, APIError } from '../../../core/types'
+import { logger } from '../../../utils/logger'
+import { toInternalEmail, toInternalEmails } from '../transformer'
+import { validateEmailRequest, validateBatchRequest } from '../validation'
+import { jobStore } from '../../../services/job-store'
+
+function generateId(prefix: string): string {
+  const timestamp = Date.now().toString(36)
+  const random = Math.random().toString(36).substring(2, 10)
+  return `${prefix}_${timestamp}${random}`
+}
+
+export async function handleSendEmail(c: Context) {
+  try {
+    const body: unknown = await c.req.json()
+    const validation = validateEmailRequest(body)
+
+    if (!validation.valid || !validation.data) {
+      return c.json(validation.error, 400)
+    }
+
+    const providerName = process.env.MAIL_PROVIDER ?? 'resend'
+
+    if (!registry.has(providerName)) {
+      const error: APIError = {
+        error: {
+          type: 'server_error',
+          code: 'provider_not_configured',
+          message: `Email provider "${providerName}" is not configured`,
+        },
+      }
+      return c.json(error, 500)
+    }
+
+    const provider = registry.get(providerName)
+    const email = toInternalEmail(validation.data)
+
+    const results = await provider.sendBatch([email])
+    const result = results[0]
+
+    if (!result || result.status === 'failed') {
+      const error: APIError = {
+        error: {
+          type: 'provider_error',
+          code: 'send_failed',
+          message: result?.error ?? 'Failed to send email',
+        },
+      }
+      return c.json(error, 502)
+    }
+
+    const response: UniversalEmailResponse = {
+      id: generateId('msg'),
+      status: result.status,
+      provider: providerName,
+      provider_id: result.id,
+      created_at: new Date().toISOString(),
+    }
+
+    return c.json(response, 200)
+  } catch (error) {
+    logger.error('Email send error', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+
+    const apiError: APIError = {
+      error: {
+        type: 'server_error',
+        code: 'internal_error',
+        message: 'An unexpected error occurred',
+      },
+    }
+    return c.json(apiError, 500)
+  }
+}
+
+export async function handleSendBatch(c: Context) {
+  try {
+    const body: unknown = await c.req.json()
+    const validation = validateBatchRequest(body)
+
+    if (!validation.valid || !validation.data) {
+      return c.json(validation.error, 400)
+    }
+
+    const providerName = process.env.MAIL_PROVIDER ?? 'resend'
+
+    if (!registry.has(providerName)) {
+      const error: APIError = {
+        error: {
+          type: 'server_error',
+          code: 'provider_not_configured',
+          message: `Email provider "${providerName}" is not configured`,
+        },
+      }
+      return c.json(error, 500)
+    }
+
+    // Create job
+    const jobId = generateId('job')
+    const emails = toInternalEmails(validation.data.emails)
+    const recipients = validation.data.emails.map(e => {
+      const to = e.to[0]
+      return typeof to === 'string' ? to : to.email
+    })
+
+    const job = jobStore.create(jobId, recipients)
+
+    // Process in background
+    void processJobAsync(jobId, emails, providerName)
+
+    return c.json(
+      {
+        job_id: job.id,
+        status: job.status,
+        total: job.total,
+        submitted_at: job.created_at.toISOString(),
+        status_url: `/api/v1/jobs/${job.id}`,
+      },
+      202,
+    )
+  } catch (error) {
+    logger.error('Batch send error', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+
+    const apiError: APIError = {
+      error: {
+        type: 'server_error',
+        code: 'internal_error',
+        message: 'An unexpected error occurred',
+      },
+    }
+    return c.json(apiError, 500)
+  }
+}
+
+async function processJobAsync(
+  jobId: string,
+  emails: ReturnType<typeof toInternalEmails>,
+  providerName: string,
+) {
+  try {
+    jobStore.updateStatus(jobId, 'processing')
+
+    const provider = registry.get(providerName)
+    const results = await provider.sendBatch(emails)
+
+    // Update job with results
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i]
+      jobStore.updateEmailResult(jobId, i, {
+        status: result.status,
+        provider_id: result.id,
+        error: result.error,
+      })
+    }
+
+    // Determine final status
+    const job = jobStore.get(jobId)
+    if (job) {
+      if (job.failed === job.total) {
+        jobStore.updateStatus(jobId, 'failed')
+      } else if (job.failed > 0) {
+        jobStore.updateStatus(jobId, 'partial')
+      } else {
+        jobStore.updateStatus(jobId, 'completed')
+      }
+    }
+  } catch (error) {
+    logger.error('Job processing error', {
+      jobId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    jobStore.updateStatus(jobId, 'failed')
+  }
+}

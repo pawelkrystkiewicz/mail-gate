@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { createApiRoutes } from './api/routes'
+import { createUniversalApiRoutes } from './api/v1/routes'
 import { registry } from './core/registry'
 import { ResendProvider } from './providers/resend'
 import { logger } from './utils/logger'
@@ -23,6 +24,10 @@ app.get('/health', c => {
 // Mount Mailgun-compatible API at /v3
 const api = createApiRoutes()
 app.route('/v3', api)
+
+// Mount Universal API at /api/v1
+const universalApi = createUniversalApiRoutes()
+app.route('/api/v1', universalApi)
 
 // Initialize providers (stateless - no API keys stored)
 function initializeProviders() {
