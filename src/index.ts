@@ -4,7 +4,7 @@ import { createApiRoutes } from './api/routes'
 import { registry } from './core/registry'
 import { ResendProvider } from './providers/resend'
 import { logger } from './utils/logger'
-import { UniOneProvider, parseUniOneRegion } from "./providers/unione";
+import { UniOneProvider, parseUniOneRegion } from './providers/unione'
 
 const app = new Hono()
 
@@ -35,14 +35,14 @@ function initializeProviders() {
     logger.warn('RESEND_API_KEY not set, Resend provider not available')
   }
 
-  const unioneApiKey = process.env.UNIONE_API_KEY;
+  const unioneApiKey = process.env.UNIONE_API_KEY
   if (unioneApiKey) {
-    const region = parseUniOneRegion(process.env.UNIONE_REGION);
-    const unioneProvider = new UniOneProvider(unioneApiKey, region);
-    registry.register(unioneProvider);
-    logger.info("Registered provider: unione", { region });
+    const region = parseUniOneRegion(process.env.UNIONE_REGION)
+    const unioneProvider = new UniOneProvider(unioneApiKey, region)
+    registry.register(unioneProvider)
+    logger.info('Registered provider: unione', { region })
   } else {
-    logger.warn("UNIONE_API_KEY not set, UniOne provider not available");
+    logger.warn('UNIONE_API_KEY not set, UniOne provider not available')
   }
 }
 

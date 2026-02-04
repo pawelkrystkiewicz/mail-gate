@@ -1,9 +1,9 @@
 export interface ParsedEmailAddress {
-  email: string;
-  name?: string;
+  email: string
+  name?: string
 }
 
-const EMAIL_WITH_NAME_REGEX = /^(.+?)\s*<([^>]+)>$/;
+const EMAIL_WITH_NAME_REGEX = /^(.+?)\s*<([^>]+)>$/
 
 /**
  * Parses email address formats:
@@ -11,15 +11,15 @@ const EMAIL_WITH_NAME_REGEX = /^(.+?)\s*<([^>]+)>$/;
  * - "email@domain.com" -> { email: "email@domain.com" }
  */
 export function parseEmailAddress(from: string): ParsedEmailAddress {
-  const trimmed = from.trim();
-  const match = trimmed.match(EMAIL_WITH_NAME_REGEX);
+  const trimmed = from.trim()
+  const match = EMAIL_WITH_NAME_REGEX.exec(trimmed)
 
   if (match?.[1] && match[2]) {
     return {
       name: match[1].trim(),
       email: match[2].trim(),
-    };
+    }
   }
 
-  return { email: trimmed };
+  return { email: trimmed }
 }
