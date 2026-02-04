@@ -1,6 +1,6 @@
 import { describe, expect, test, mock, beforeEach, afterEach } from "bun:test";
 import { toUniOneFormat, toUniOneRequest } from "../src/providers/unione/transformer";
-import { UniOneProvider } from "../src/providers/unione";
+import { UniOneProvider, parseUniOneRegion } from "../src/providers/unione";
 import type { Email } from "../src/core/types";
 
 describe("UniOne transformer", () => {
@@ -363,5 +363,52 @@ describe("UniOneProvider", () => {
 
     expect(capturedHeaders!.get("X-API-KEY")).toBe("my-secret-key");
     expect(capturedHeaders!.get("Content-Type")).toBe("application/json");
+  });
+
+  test("handles invalid response format", async () => {
+    globalThis.fetch = mock(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({ unexpected: "format" }),
+          { status: 200 }
+        )
+      )
+    ) as unknown as typeof fetch;
+
+    const provider = new UniOneProvider("test-api-key");
+    const email: Email = {
+      from: "sender@example.com",
+      to: ["recipient@example.com"],
+      subject: "Test",
+      html: "<p>Hello</p>",
+    };
+
+    const results = await provider.sendBatch([email]);
+
+    expect(results).toHaveLength(1);
+    expect(results[0]!.status).toBe("failed");
+    expect(results[0]!.error).toContain("Invalid response format");
+  });
+});
+
+describe("parseUniOneRegion", () => {
+  test("returns us for undefined", () => {
+    expect(parseUniOneRegion(undefined)).toBe("us");
+  });
+
+  test("returns us for 'us'", () => {
+    expect(parseUniOneRegion("us")).toBe("us");
+  });
+
+  test("returns eu for 'eu'", () => {
+    expect(parseUniOneRegion("eu")).toBe("eu");
+  });
+
+  test("returns us for invalid value", () => {
+    expect(parseUniOneRegion("invalid")).toBe("us");
+  });
+
+  test("returns us for empty string", () => {
+    expect(parseUniOneRegion("")).toBe("us");
   });
 });

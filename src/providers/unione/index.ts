@@ -5,20 +5,36 @@ import { toUniOneRequest, type UniOneResponse } from "./transformer";
 
 export type UniOneRegion = "us" | "eu";
 
+const REGION_URLS: Record<UniOneRegion, string> = {
+  us: "https://us1.unione.io",
+  eu: "https://eu1.unione.io",
+};
+
+function isUniOneResponse(data: unknown): data is UniOneResponse {
+  if (typeof data !== "object" || data === null) return false;
+  const obj = data as Record<string, unknown>;
+  return obj.status === "success" || obj.status === "error";
+}
+
+export function parseUniOneRegion(value: string | undefined): UniOneRegion {
+  if (value === "eu") return "eu";
+  if (value && value !== "us") {
+    logger.warn(`Invalid UNIONE_REGION "${value}", defaulting to "us"`);
+  }
+  return "us";
+}
+
 export class UniOneProvider implements EmailProvider {
   readonly name = "unione";
-  readonly batchSize = 500; // UniOne max recipients per request
-  readonly rateLimit = 10; // Conservative rate limit
+  readonly batchSize = 500;
+  readonly rateLimit = 10;
 
   private apiKey: string;
   private baseUrl: string;
 
   constructor(apiKey: string, region: UniOneRegion = "us") {
     this.apiKey = apiKey;
-    this.baseUrl =
-      region === "eu"
-        ? "https://eu1.unione.io"
-        : "https://us1.unione.io";
+    this.baseUrl = REGION_URLS[region];
   }
 
   async sendBatch(emails: Email[]): Promise<SendResult[]> {
@@ -29,8 +45,6 @@ export class UniOneProvider implements EmailProvider {
 
     const results: SendResult[] = [];
 
-    // UniOne supports up to 500 recipients per request
-    // Send each email individually to maintain per-email results
     for (const email of emails) {
       const result = await this.sendSingle(email);
       results.push(result);
@@ -65,58 +79,65 @@ export class UniOneProvider implements EmailProvider {
         body: JSON.stringify(request),
       });
 
-      const data = (await response.json()) as UniOneResponse;
+      const json: unknown = await response.json();
+
+      if (!isUniOneResponse(json)) {
+        logger.error("UniOne invalid response format", { json });
+        return {
+          id: "",
+          status: "failed",
+          error: "Invalid response format from UniOne API",
+        };
+      }
 
       if (!response.ok) {
         logger.error("UniOne API error", {
           status: response.status,
-          message: data.message,
-          code: data.code,
+          message: json.message,
+          code: json.code,
         });
         return {
           id: "",
           status: "failed",
-          error: data.message ?? `HTTP ${response.status}`,
+          error: json.message ?? `HTTP ${response.status}`,
         };
       }
 
-      if (data.status === "error") {
+      if (json.status === "error") {
         logger.error("UniOne send error", {
-          message: data.message,
-          code: data.code,
+          message: json.message,
+          code: json.code,
         });
         return {
           id: "",
           status: "failed",
-          error: data.message ?? "Unknown error",
+          error: json.message ?? "Unknown error",
         };
       }
 
-      // Check for partial failures
-      if (data.failed_emails && Object.keys(data.failed_emails).length > 0) {
-        const failedAddresses = Object.keys(data.failed_emails);
+      if (json.failed_emails && Object.keys(json.failed_emails).length > 0) {
+        const failedAddresses = Object.keys(json.failed_emails);
         logger.warn("UniOne partial failure", {
           failed: failedAddresses,
-          reasons: data.failed_emails,
+          reasons: json.failed_emails,
         });
 
-        // If all recipients failed
         if (failedAddresses.length === email.to.length) {
           return {
-            id: data.job_id ?? "",
+            id: json.job_id ?? "",
             status: "failed",
-            error: `All recipients failed: ${JSON.stringify(data.failed_emails)}`,
+            error: `All recipients failed: ${JSON.stringify(json.failed_emails)}`,
           };
         }
       }
 
       logger.debug("UniOne email sent", {
-        jobId: data.job_id,
-        emails: data.emails,
+        jobId: json.job_id,
+        emails: json.emails,
       });
 
       return {
-        id: data.job_id ?? "",
+        id: json.job_id ?? "",
         status: "queued",
       };
     } catch (error) {

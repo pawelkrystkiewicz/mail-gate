@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { createApiRoutes } from "./api/routes";
 import { registry } from "./core/registry";
 import { ResendProvider } from "./providers/resend";
-import { UniOneProvider, type UniOneRegion } from "./providers/unione";
+import { UniOneProvider, parseUniOneRegion } from "./providers/unione";
 import { logger } from "./utils/logger";
 
 const app = new Hono();
@@ -37,7 +37,7 @@ function initializeProviders() {
 
   const unioneApiKey = process.env.UNIONE_API_KEY;
   if (unioneApiKey) {
-    const region = (process.env.UNIONE_REGION ?? "us") as UniOneRegion;
+    const region = parseUniOneRegion(process.env.UNIONE_REGION);
     const unioneProvider = new UniOneProvider(unioneApiKey, region);
     registry.register(unioneProvider);
     logger.info("Registered provider: unione", { region });
