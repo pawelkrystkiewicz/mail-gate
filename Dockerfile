@@ -23,8 +23,8 @@ COPY --from=builder /app/src ./src
 COPY --from=builder /app/package.json ./
 
 # Create non-root user
-RUN addgroup --system --gid 1001 mailgate && \
-    adduser --system --uid 1001 --ingroup mailgate mailgate
+RUN groupadd --system --gid 1001 mailgate && \
+    useradd --system --uid 1001 --gid mailgate --shell /bin/false mailgate
 USER mailgate
 
 ARG PORT=3001

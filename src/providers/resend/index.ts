@@ -63,7 +63,16 @@ export class ResendProvider implements EmailProvider {
       }
 
       if (response.data) {
-        const items = response.data.data;
+        // Resend batch response: { data: { data: Array<{id: string}> } }
+        const items = response.data.data ?? [];
+        if (items.length === 0) {
+          logger.warn("Batch returned no items");
+          return batch.map(() => ({
+            id: "",
+            status: "failed" as const,
+            error: "No items in response",
+          }));
+        }
         logger.debug("Batch sent", { count: items.length });
         return items.map((r) => ({
           id: r.id,
