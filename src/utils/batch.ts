@@ -36,7 +36,7 @@ export async function processBatches<T, R>(
   const processNext = async (): Promise<void> => {
     while (currentIndex < batches.length) {
       const index = currentIndex++;
-      const batch = batches[index];
+      const batch = batches[index]!;
 
       // Apply rate limiting delay before each request
       if (delayMs > 0 && index > 0) {
@@ -100,7 +100,7 @@ export async function processBatchesParallel<T, R>(
       if (delayMs > 0 && index > 0) {
         await sleep(delayMs * (index % concurrency));
       }
-      results[index] = await processor(batches[index]);
+      results[index] = await processor(batches[index]!);
     } finally {
       release();
     }

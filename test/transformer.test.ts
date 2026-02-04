@@ -101,7 +101,7 @@ describe("mailgunToInternal", () => {
     const result = mailgunToInternal(request);
 
     expect(result).toHaveLength(1);
-    expect(result[0].to).toEqual(["one@example.com", "two@example.com"]);
+    expect(result[0]!.to).toEqual(["one@example.com", "two@example.com"]);
   });
 
   test("splits into individual emails with recipient variables", () => {
@@ -119,9 +119,9 @@ describe("mailgunToInternal", () => {
     const result = mailgunToInternal(request);
 
     expect(result).toHaveLength(2);
-    expect(result[0].to).toEqual(["one@example.com"]);
-    expect(result[0].html).toBe("<p>Hello One</p>");
-    expect(result[1].to).toEqual(["two@example.com"]);
-    expect(result[1].html).toBe("<p>Hello Two</p>");
+    expect(result[0]!.to).toEqual(["one@example.com"]);
+    expect(result[0]!.html).toBe("<p>Hello One</p>");
+    expect(result[1]!.to).toEqual(["two@example.com"]);
+    expect(result[1]!.html).toBe("<p>Hello Two</p>");
   });
 });

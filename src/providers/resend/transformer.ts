@@ -1,25 +1,19 @@
-import type { Email } from "../../core/types";
+import type { CreateEmailOptions } from 'resend'
+import type { Email } from '../../core/types'
 
-export interface ResendEmail {
-  from: string;
-  to: string[];
-  subject: string;
-  html?: string;
-  text?: string;
-  tags?: Array<{ name: string; value: string }>;
+export function toResendFormat({ from, subject, to, html, tags, text }: Email): CreateEmailOptions {
+  const base = {
+    from,
+    to,
+    subject,
+    tags: tags?.map(tag => ({ name: tag, value: tag })),
+  }
+
+  if (html) return { ...base, html }
+  if (text) return { ...base, text }
+  return { ...base, text: '' }
 }
 
-export function toResendFormat(email: Email): ResendEmail {
-  return {
-    from: email.from,
-    to: email.to,
-    subject: email.subject,
-    html: email.html,
-    text: email.text,
-    tags: email.tags?.map((tag) => ({ name: "tag", value: tag })),
-  };
-}
-
-export function toResendBatch(emails: Email[]): ResendEmail[] {
-  return emails.map(toResendFormat);
+export function toResendBatch(emails: Email[]): CreateEmailOptions[] {
+  return emails.map(toResendFormat)
 }
