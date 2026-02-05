@@ -96,9 +96,14 @@ class RateLimitStore {
     const updated: SlidingWindowEntry = {
       count: existing.windowStart === windowStart ? existing.count + 1 : 1,
       windowStart,
-      previousCount: existing.windowStart === windowStart ? existing.previousCount : existing.count,
+      previousCount:
+        existing.windowStart === windowStart
+          ? existing.previousCount
+          : existing.count,
       previousWindowStart:
-        existing.windowStart === windowStart ? existing.previousWindowStart : existing.windowStart,
+        existing.windowStart === windowStart
+          ? existing.previousWindowStart
+          : existing.windowStart,
     }
 
     this.store.set(key, updated)
@@ -108,7 +113,10 @@ class RateLimitStore {
   /**
    * Calculate the effective count using sliding window algorithm
    */
-  calculateSlidingWindowCount(entry: SlidingWindowEntry, windowMs: number): number {
+  calculateSlidingWindowCount(
+    entry: SlidingWindowEntry,
+    windowMs: number,
+  ): number {
     const now = Date.now()
     const windowStart = Math.floor(now / windowMs) * windowMs
     const elapsedInWindow = now - windowStart
@@ -184,7 +192,10 @@ function defaultHandler(c: Context, info: RateLimitInfo): Response {
  * Mailgun-compatible rate limit exceeded handler
  * Returns error format that Ghost and other Mailgun clients expect
  */
-export function mailgunRateLimitHandler(c: Context, _info: RateLimitInfo): Response {
+export function mailgunRateLimitHandler(
+  c: Context,
+  _info: RateLimitInfo,
+): Response {
   return c.json(
     {
       message: 'Rate limit exceeded. Please retry after the specified time.',
@@ -196,7 +207,10 @@ export function mailgunRateLimitHandler(c: Context, _info: RateLimitInfo): Respo
 /**
  * Universal API rate limit exceeded handler
  */
-export function universalApiRateLimitHandler(c: Context, info: RateLimitInfo): Response {
+export function universalApiRateLimitHandler(
+  c: Context,
+  info: RateLimitInfo,
+): Response {
   return c.json(
     {
       type: 'rate_limit_error',
@@ -286,9 +300,18 @@ export interface RateLimitEnvConfig {
  */
 export function loadRateLimitConfig(): RateLimitEnvConfig {
   const enabled = process.env.RATE_LIMIT_ENABLED !== 'false'
-  const sendPerMinute = parseInt(process.env.RATE_LIMIT_SEND_PER_MINUTE ?? '60', 10)
-  const healthPerMinute = parseInt(process.env.RATE_LIMIT_HEALTH_PER_MINUTE ?? '120', 10)
-  const globalPerMinute = parseInt(process.env.RATE_LIMIT_GLOBAL_PER_MINUTE ?? '200', 10)
+  const sendPerMinute = parseInt(
+    process.env.RATE_LIMIT_SEND_PER_MINUTE ?? '60',
+    10,
+  )
+  const healthPerMinute = parseInt(
+    process.env.RATE_LIMIT_HEALTH_PER_MINUTE ?? '120',
+    10,
+  )
+  const globalPerMinute = parseInt(
+    process.env.RATE_LIMIT_GLOBAL_PER_MINUTE ?? '200',
+    10,
+  )
 
   return {
     enabled,
