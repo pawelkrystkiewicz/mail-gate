@@ -24,6 +24,7 @@ mail-gate acts as a drop-in replacement that:
 - Routes emails through **free-tier providers** like Resend or UniOne
 - Requires **zero code changes** to Ghost
 - Works with **any Mailgun-dependent application**
+- Also provides a **Universal API** for non-Ghost applications
 
 ## Supported Email Providers
 
@@ -44,6 +45,10 @@ mail-gate acts as a drop-in replacement that:
 git clone https://github.com/yourusername/mail-gate.git
 cd mail-gate
 
+# Configure environment
+cp .env.example .env
+# Edit .env - ALLOWED_ORIGINS is required for CORS
+
 # Start the server
 docker compose up -d
 
@@ -61,6 +66,10 @@ cd mail-gate
 # Install dependencies
 bun install
 
+# Configure environment
+cp .env.example .env
+# Edit .env - ALLOWED_ORIGINS is required for CORS
+
 # Start the server
 bun run start
 
@@ -74,6 +83,7 @@ bun run dev
 git clone https://github.com/yourusername/mail-gate.git
 cd mail-gate
 bun install
+cp .env.example .env
 bun run src/index.ts
 ```
 
@@ -136,11 +146,12 @@ docker compose logs -f mail-gate
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PORT` | Server port | `4050` |
-| `UNIONE_REGION` | UniOne region (`eu` or `us`) | `eu` |
-| `LOG_LEVEL` | Log verbosity (`debug`, `info`, `warn`, `error`) | `info` |
+| Variable | Required | Description | Default |
+|----------|----------|-------------|---------|
+| `ALLOWED_ORIGINS` | Yes | Comma-separated CORS origins | - |
+| `PORT` | No | Server port | `4050` |
+| `UNIONE_REGION` | No | UniOne region (`eu` or `us`) | `eu` |
+| `LOG_LEVEL` | No | Log verbosity (`debug`, `info`, `warn`, `error`) | `info` |
 
 Copy `.env.example` to `.env` to customize:
 
@@ -148,17 +159,26 @@ Copy `.env.example` to `.env` to customize:
 cp .env.example .env
 ```
 
-> **Note:** API keys are provided per-request via Basic Auth, not stored in environment variables. This allows multiple providers and keys without restarting the server.
+> **Note:** API keys are provided per-request via headers, not stored in environment variables. This allows multiple providers and keys without restarting the server.
+
+## APIs
+
+mail-gate provides two APIs:
+
+| API | Path | Use Case |
+|-----|------|----------|
+| Mailgun-compatible | `/v3` | Ghost CMS integration (drop-in Mailgun replacement) |
+| Universal API | `/api/v1` | Modern REST interface for other applications |
 
 ## Authentication
 
-mail-gate uses **stateless authentication**. Each request includes the provider and API key via HTTP Basic Auth:
+### Mailgun-compatible API (`/v3`)
+
+Uses HTTP Basic Auth with `provider:apikey` format:
 
 ```
 Authorization: Basic base64(provider:apikey)
 ```
-
-**Format:** `provider:apikey`
 
 | Provider | Example |
 |----------|---------|
@@ -167,25 +187,38 @@ Authorization: Basic base64(provider:apikey)
 
 Ghost handles this automatically once you set `mailgun_api_key` in the database.
 
-## API Reference
+### Universal API (`/api/v1`)
 
-### Health Check
+Uses Bearer token or X-API-Key header with X-Provider header:
+
+```http
+Authorization: Bearer <apikey>
+X-Provider: resend
+```
+
+Or:
+
+```http
+X-API-Key: <apikey>
+X-Provider: resend
+```
+
+## API Endpoints
+
+### Health & Discovery
 
 ```bash
+# Health check
 curl http://localhost:4050/health
+
+# API info (Universal API)
+curl http://localhost:4050/api/v1
 ```
 
-```json
-{
-  "status": "ok",
-  "mode": "stateless",
-  "providers": ["resend", "unione"]
-}
-```
-
-### Send Email (Mailgun-compatible)
+### Mailgun-compatible API
 
 ```bash
+# Send email using Resend
 curl -X POST http://localhost:4050/v3/your-domain.com/messages \
   -u "resend:re_xxxxxxxxxxxx" \
   -F "from=Your Name <sender@yourdomain.com>" \
@@ -194,6 +227,51 @@ curl -X POST http://localhost:4050/v3/your-domain.com/messages \
   -F "html=<h1>It works!</h1>"
 ```
 
+### Universal API
+
+```bash
+# Send single email
+curl -X POST http://localhost:4050/api/v1/emails \
+  -H "Authorization: Bearer re_xxxxxxxxxxxx" \
+  -H "X-Provider: resend" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "from": "sender@example.com",
+    "to": "recipient@example.com",
+    "subject": "Test Email",
+    "html": "<p>Hello World</p>"
+  }'
+
+# Send batch emails (async)
+curl -X POST http://localhost:4050/api/v1/emails/batch \
+  -H "Authorization: Bearer re_xxxxxxxxxxxx" \
+  -H "X-Provider: resend" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "emails": [
+      {"from": "sender@example.com", "to": "user1@example.com", "subject": "Hello", "text": "Hi there"},
+      {"from": "sender@example.com", "to": "user2@example.com", "subject": "Hello", "text": "Hi there"}
+    ]
+  }'
+# Returns 202 with jobId, poll /api/v1/jobs/:id for status
+
+# Check batch job status
+curl http://localhost:4050/api/v1/jobs/{jobId} \
+  -H "Authorization: Bearer re_xxxxxxxxxxxx" \
+  -H "X-Provider: resend"
+```
+
+### API Reference
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/health` | No | Health check |
+| GET | `/api/v1` | No | API info & feature discovery |
+| POST | `/v3/:domain/messages` | Basic | Send email (Mailgun format) |
+| POST | `/api/v1/emails` | Bearer | Send single email |
+| POST | `/api/v1/emails/batch` | Bearer | Send batch emails (returns 202) |
+| GET | `/api/v1/jobs/:id` | Bearer | Get batch job status |
+
 ## Architecture
 
 ```
@@ -201,12 +279,23 @@ curl -X POST http://localhost:4050/v3/your-domain.com/messages \
 │  Ghost CMS  │────▶│  mail-gate  │────▶│  Email Provider │
 │             │     │ (Mailgun API)│     │ (Resend/UniOne) │
 └─────────────┘     └─────────────┘     └─────────────────┘
+       or
+┌─────────────┐     ┌─────────────┐     ┌─────────────────┐
+│  Your App   │────▶│  mail-gate  │────▶│  Email Provider │
+│             │     │(Universal API)│    │ (Resend/UniOne) │
+└─────────────┘     └─────────────┘     └─────────────────┘
 ```
 
-1. Ghost sends email via Mailgun API format
+1. Ghost/App sends email via Mailgun API or Universal API format
 2. mail-gate receives and transforms the request
 3. Request is forwarded to your chosen provider
-4. Response is translated back to Mailgun format
+4. Response is translated back to the expected format
+
+## Testing
+
+```bash
+bun test
+```
 
 ## Troubleshooting
 
@@ -231,6 +320,11 @@ curl -X POST http://localhost:4050/v3/your-domain.com/messages \
 - Ensure mail-gate is accessible from Ghost
 - If using Docker, ensure both containers are on the same network
 - Check firewall rules if running on separate hosts
+
+### CORS errors
+
+- Ensure `ALLOWED_ORIGINS` is set in your `.env` file
+- Include all origins that will make requests to mail-gate
 
 ### Emails not arriving
 
