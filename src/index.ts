@@ -37,7 +37,7 @@ function initializeProviders() {
 }
 
 // Start server
-const port = parseInt(process.env.PORT ?? '3001', 10)
+const port = parseInt(process.env.PORT ?? '4050', 10)
 
 initializeProviders()
 

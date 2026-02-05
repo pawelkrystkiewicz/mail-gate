@@ -67,7 +67,7 @@ Copy `.env.example` to `.env` and configure:
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `UNIONE_REGION` | No | `eu` (default) or `us` |
-| `PORT` | No | Server port (default: 3001) |
+| `PORT` | No | Server port (default: 4050) |
 | `LOG_LEVEL` | No | `debug`, `info`, `warn`, `error` |
 
 **Note:** API keys are provided per-request via Basic Auth (`provider:apikey` format), not via environment variables.

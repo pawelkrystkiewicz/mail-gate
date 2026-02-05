@@ -44,7 +44,7 @@ Update Ghost's Mailgun settings in the database:
 ```sql
 -- Set the mail-gate URL
 UPDATE settings
-SET value = 'http://127.0.0.1:3001/v3'
+SET value = 'http://127.0.0.1:4050/v3'
 WHERE `key` = 'mailgun_base_url';
 
 -- Set the API key in provider:apikey format
@@ -57,7 +57,7 @@ Or if using Docker, point to your mail-gate container:
 
 ```sql
 UPDATE settings
-SET value = 'http://mail-gate:3001/v3'
+SET value = 'http://mail-gate:4050/v3'
 WHERE `key` = 'mailgun_base_url';
 ```
 
@@ -74,7 +74,7 @@ docker compose up -d
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `UNIONE_REGION` | UniOne region (`eu`, `us`) | `eu` |
-| `PORT` | Server port | `3001` |
+| `PORT` | Server port | `4050` |
 | `LOG_LEVEL` | Log level (debug/info/warn/error) | `info` |
 
 > **Note:** API keys are provided per-request via Basic Auth (see [Authentication](#authentication) below). No API keys are stored in environment variables.
@@ -99,14 +99,24 @@ Where `provider` is the email provider name (`resend` or `unione`) and `apikey` 
 ### Health Check
 
 ```bash
-curl http://localhost:3001/health
+curl http://localhost:4050/health
+```
+
+Response:
+
+```json
+{
+  "status": "ok",
+  "mode": "stateless",
+  "providers": ["resend", "unione"]
+}
 ```
 
 ### Send Email (Mailgun-compatible)
 
 ```bash
 # Using Resend
-curl -X POST http://localhost:3001/v3/your-domain.com/messages \
+curl -X POST http://localhost:4050/v3/your-domain.com/messages \
   -u "resend:re_xxxxxxxxxxxx" \
   -F "from=sender@example.com" \
   -F "to=recipient@example.com" \
@@ -114,7 +124,7 @@ curl -X POST http://localhost:3001/v3/your-domain.com/messages \
   -F "html=<p>Hello World</p>"
 
 # Using UniOne
-curl -X POST http://localhost:3001/v3/your-domain.com/messages \
+curl -X POST http://localhost:4050/v3/your-domain.com/messages \
   -u "unione:your-unione-api-key" \
   -F "from=sender@example.com" \
   -F "to=recipient@example.com" \
