@@ -42,7 +42,7 @@ mail-gate acts as a drop-in replacement that:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/mail-gate.git
+git clone https://github.com/pawelkrystkiewicz/mail-gate.git
 cd mail-gate
 
 # Configure environment
@@ -60,7 +60,7 @@ docker compose logs -f
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/mail-gate.git
+git clone https://github.com/pawelkrystkiewicz/mail-gate.git
 cd mail-gate
 
 # Install dependencies
@@ -80,7 +80,7 @@ bun run dev
 ### Option 3: Run from Source
 
 ```bash
-git clone https://github.com/yourusername/mail-gate.git
+git clone https://github.com/pawelkrystkiewicz/mail-gate.git
 cd mail-gate
 bun install
 cp .env.example .env
@@ -98,7 +98,20 @@ Ghost stores Mailgun settings in its database. You need to update two settings:
 
 ### Step 2: Update Ghost Database
 
-Connect to your Ghost database and run:
+Connect to your Ghost database:
+
+```bash
+# Docker (MySQL)
+docker exec -it ghost-db mysql -u root -p ghost
+
+# Docker (SQLite) - find the database file
+docker exec -it ghost ls /var/lib/ghost/content/data/
+
+# Local Ghost installation
+mysql -u ghost -p ghost
+```
+
+Then run these SQL commands:
 
 ```sql
 -- Point Ghost to mail-gate instead of Mailgun
