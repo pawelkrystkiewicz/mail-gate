@@ -1,8 +1,44 @@
-import { describe, it, expect, beforeAll, mock } from 'bun:test'
+import { describe, it, expect, beforeAll } from 'bun:test'
 import app from '../src/index'
 import { registry } from '../src/core/registry'
 import type { EmailProvider } from '../src/core/provider'
 import type { Email, SendResult, ProviderCapabilities } from '../src/core/types'
+
+interface APIInfoResponse {
+  name: string
+  api_version: string
+  provider: { name: string }
+  capabilities: { batch: boolean; tracking: boolean }
+}
+
+interface ErrorResponse {
+  error: {
+    type: string
+    code?: string
+    details?: { fields: unknown[] }
+  }
+}
+
+interface EmailResponse {
+  id: string
+  status: string
+  provider: string
+  provider_id: string
+  created_at: string
+}
+
+interface BatchResponse {
+  job_id: string
+  status: string
+  total: number
+  status_url: string
+}
+
+interface JobResponse {
+  job_id: string
+  progress: { total: number }
+  created_at: string
+}
 
 // Mock provider for testing
 class MockProvider implements EmailProvider {
@@ -39,7 +75,7 @@ describe('Universal API v1', () => {
       const res = await app.fetch(new Request('http://localhost/api/v1'))
       expect(res.status).toBe(200)
 
-      const body = await res.json()
+      const body = (await res.json()) as APIInfoResponse
       expect(body.name).toBe('mail-gate')
       expect(body.api_version).toBe('v1')
       expect(body.provider).toBeDefined()
@@ -48,7 +84,7 @@ describe('Universal API v1', () => {
 
     it('includes provider capabilities', async () => {
       const res = await app.fetch(new Request('http://localhost/api/v1'))
-      const body = await res.json()
+      const body = (await res.json()) as APIInfoResponse
 
       expect(body.provider.name).toBe('mock')
       expect(body.capabilities.batch).toBe(true)
@@ -114,9 +150,9 @@ describe('Universal API v1', () => {
       )
       expect(res.status).toBe(400)
 
-      const body = await res.json()
+      const body = (await res.json()) as ErrorResponse
       expect(body.error.type).toBe('validation_error')
-      expect(body.error.details.fields).toBeDefined()
+      expect(body.error.details?.fields).toBeDefined()
     })
 
     it('sends email with valid request', async () => {
@@ -141,7 +177,7 @@ describe('Universal API v1', () => {
       )
       expect(res.status).toBe(200)
 
-      const body = await res.json()
+      const body = (await res.json()) as EmailResponse
       expect(body.id).toMatch(/^msg_/)
       expect(body.status).toBe('queued')
       expect(body.provider).toBe('mock')
@@ -217,7 +253,7 @@ describe('Universal API v1', () => {
       )
       expect(res.status).toBe(202)
 
-      const body = await res.json()
+      const body = (await res.json()) as BatchResponse
       expect(body.job_id).toMatch(/^job_/)
       // Status may be 'pending' or 'processing' depending on timing
       expect(['pending', 'processing']).toContain(body.status)
@@ -245,7 +281,7 @@ describe('Universal API v1', () => {
       )
       expect(res.status).toBe(400)
 
-      const body = await res.json()
+      const body = (await res.json()) as ErrorResponse
       expect(body.error.type).toBe('validation_error')
     })
   })
@@ -259,7 +295,7 @@ describe('Universal API v1', () => {
       )
       expect(res.status).toBe(404)
 
-      const body = await res.json()
+      const body = (await res.json()) as ErrorResponse
       expect(body.error.type).toBe('not_found_error')
       expect(body.error.code).toBe('job_not_found')
     })
@@ -285,7 +321,7 @@ describe('Universal API v1', () => {
           }),
         }),
       )
-      const createBody = await createRes.json()
+      const createBody = (await createRes.json()) as BatchResponse
       const jobId = createBody.job_id
 
       // Wait a bit for background processing
@@ -299,7 +335,7 @@ describe('Universal API v1', () => {
       )
       expect(res.status).toBe(200)
 
-      const body = await res.json()
+      const body = (await res.json()) as JobResponse
       expect(body.job_id).toBe(jobId)
       expect(body.progress).toBeDefined()
       expect(body.progress.total).toBe(1)

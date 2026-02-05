@@ -76,6 +76,7 @@ docker compose up -d
 | `UNIONE_REGION` | UniOne region (`eu`, `us`) | `eu` |
 | `PORT` | Server port | `3001` |
 | `LOG_LEVEL` | Log level (debug/info/warn/error) | `info` |
+| `MAIL_PROVIDER` | Default provider for Universal API (`resend`, `unione`) | `resend` |
 
 > **Note:** API keys are provided per-request via Basic Auth (see [Authentication](#authentication) below). No API keys are stored in environment variables.
 
@@ -122,6 +123,91 @@ curl -X POST http://localhost:3001/v3/your-domain.com/messages \
   -F "html=<p>Hello World</p>"
 ```
 
+## Universal API (v1)
+
+For applications that don't need Mailgun compatibility, mail-gate provides a modern REST API at `/api/v1`.
+
+### Features
+
+- **Bearer token authentication** - Simple `Authorization: Bearer <key>` or `X-API-Key` header
+- **Structured JSON requests** - Clean `{ email, name }` format instead of form-data
+- **Async batch processing** - Submit batches, poll for status
+- **Feature discovery** - Query provider capabilities at runtime
+
+### V1 Authentication
+
+```http
+Authorization: Bearer your-api-key
+```
+
+Or:
+
+```http
+X-API-Key: your-api-key
+```
+
+### V1 Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1` | API info & capabilities |
+| POST | `/api/v1/emails` | Send single email |
+| POST | `/api/v1/emails/batch` | Send batch (returns 202) |
+| GET | `/api/v1/jobs/:id` | Get batch job status |
+
+### V1 Examples
+
+**Send single email:**
+
+```bash
+curl -X POST http://localhost:3001/api/v1/emails \
+  -H "Authorization: Bearer re_xxxxxxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "from": { "email": "sender@example.com", "name": "Sender" },
+    "to": [{ "email": "recipient@example.com" }],
+    "subject": "Hello",
+    "content": { "text": "Hello World" }
+  }'
+```
+
+**Send batch (async):**
+
+```bash
+curl -X POST http://localhost:3001/api/v1/emails/batch \
+  -H "X-API-Key: re_xxxxxxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "emails": [
+      {
+        "from": { "email": "sender@example.com" },
+        "to": [{ "email": "user1@example.com" }],
+        "subject": "Hello",
+        "content": { "text": "Hello User 1" }
+      },
+      {
+        "from": { "email": "sender@example.com" },
+        "to": [{ "email": "user2@example.com" }],
+        "subject": "Hello",
+        "content": { "text": "Hello User 2" }
+      }
+    ]
+  }'
+```
+
+**Check job status:**
+
+```bash
+curl http://localhost:3001/api/v1/jobs/job_abc123 \
+  -H "Authorization: Bearer re_xxxxxxxxxxxx"
+```
+
+**Discover capabilities:**
+
+```bash
+curl http://localhost:3001/api/v1
+```
+
 ## Testing
 
 ```bash
@@ -131,10 +217,22 @@ bun test
 ## Architecture
 
 ```
-Ghost CMS → mail-gate (Mailgun API Layer) → Provider Adapter → Resend/UniOne/etc.
+                    ┌─────────────────────────────────────────┐
+                    │              mail-gate                   │
+                    │                                         │
+Ghost CMS ─────────▶│  /v3 (Mailgun-compatible)              │
+                    │         │                               │
+                    │         ▼                               │
+Other Apps ────────▶│  /api/v1 (Universal API)               │──▶ Resend/UniOne/etc.
+                    │         │                               │
+                    │         ▼                               │
+                    │  Provider Adapter Layer                 │
+                    └─────────────────────────────────────────┘
 ```
 
-mail-gate implements the Mailgun API that Ghost expects, then translates requests to the format required by your chosen email provider.
+mail-gate provides two APIs:
+- `/v3` - Mailgun-compatible API for Ghost CMS and other Mailgun-dependent apps
+- `/api/v1` - Modern Universal API for new applications
 
 ## Documentation
 
