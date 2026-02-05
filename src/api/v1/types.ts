@@ -18,7 +18,7 @@ export const SendEmailRequestSchema = z
     html: z.string().optional(),
     text: z.string().optional(),
     tags: z.array(z.string()).optional(),
-    metadata: z.record(z.unknown()).optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
   })
   .refine(data => data.html !== undefined || data.text !== undefined, {
     message: 'Either html or text content is required',
