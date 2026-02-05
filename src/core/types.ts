@@ -76,6 +76,7 @@ export interface UniversalEmailRequest {
   reply_to?: EmailAddressInput
   tags?: string[]
   metadata?: Record<string, string>
+  provider: string
 }
 
 export interface UniversalEmailResponse {
@@ -88,6 +89,7 @@ export interface UniversalEmailResponse {
 
 export interface BatchEmailRequest {
   emails: UniversalEmailRequest[]
+  provider: string
 }
 
 export interface BatchJobResponse {

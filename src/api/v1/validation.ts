@@ -1,9 +1,72 @@
+import { z } from 'zod'
 import type {
   APIError,
   UniversalEmailRequest,
   BatchEmailRequest,
-  EmailAddressInput,
 } from '../../core/types'
+
+// Custom email validation that handles "Name <email>" format
+const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+
+function isValidEmail(value: string): boolean {
+  const match = /<([^>]+)>/.exec(value)
+  const cleanEmail = (match && match[1]) ? match[1] : value
+  return emailRegex.test(cleanEmail)
+}
+
+const emailString = z.string().refine(isValidEmail, 'Invalid email address')
+
+const emailObject = z.object({
+  email: z.string().refine(isValidEmail, 'Invalid email address'),
+  name: z.string().optional(),
+})
+
+const emailAddress = z.union([emailString, emailObject])
+
+const emailContent = z
+  .object({
+    html: z.string().optional(),
+    text: z.string().optional(),
+  })
+  .refine(c => c.html || c.text, 'Either html or text content is required')
+
+// Base email schema (without provider - used for batch items)
+const baseEmailSchema = z.object({
+  from: emailAddress,
+  to: z
+    .array(emailAddress)
+    .min(1, 'At least one recipient is required')
+    .max(50, 'Maximum 50 recipients per email'),
+  subject: z
+    .string()
+    .min(1, 'Subject is required')
+    .max(998, 'Subject cannot exceed 998 characters'),
+  content: emailContent,
+  reply_to: emailAddress.optional(),
+  tags: z.array(z.string()).max(5, 'Maximum 5 tags per email').optional(),
+  metadata: z.record(z.string(), z.string()).optional(),
+})
+
+const providerField = z
+  .string()
+  .min(
+    1,
+    'Provider is required. Without it, we cannot determine which provider to route your request to and which API key applies.',
+  )
+
+// Full email request schema (with provider)
+export const emailRequestSchema = baseEmailSchema.extend({
+  provider: providerField,
+})
+
+// Batch request schema
+export const batchRequestSchema = z.object({
+  provider: providerField,
+  emails: z
+    .array(baseEmailSchema)
+    .min(1, 'At least one email is required')
+    .max(1000, 'Maximum 1000 emails per batch'),
+})
 
 interface ValidationResult {
   valid: boolean
@@ -13,6 +76,13 @@ interface ValidationResult {
 interface FieldError {
   field: string
   message: string
+}
+
+function formatZodErrors(error: z.ZodError): FieldError[] {
+  return error.issues.map(issue => ({
+    field: issue.path.join('.') || 'body',
+    message: issue.message,
+  }))
 }
 
 function validationError(fields: FieldError[]): APIError {
@@ -26,150 +96,32 @@ function validationError(fields: FieldError[]): APIError {
   }
 }
 
-function isValidEmailAddress(addr: EmailAddressInput): boolean {
-  const email = typeof addr === 'string' ? addr : addr.email
-
-  // Extract email from "Name <email>" format if present
-  const match = /<([^>]+)>/.exec(email)
-  const cleanEmail = match ? match[1] : email
-
-  // More robust email validation regex
-  // - Local part: alphanumeric plus ._%+-
-  // - Domain: alphanumeric plus .-
-  // - TLD: at least 2 characters
-  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
-  return emailRegex.test(cleanEmail)
-}
-
 export function validateEmailRequest(
   body: unknown,
 ): ValidationResult & { data?: UniversalEmailRequest } {
-  if (!body || typeof body !== 'object') {
+  const result = emailRequestSchema.safeParse(body)
+
+  if (!result.success) {
     return {
       valid: false,
-      error: validationError([
-        { field: 'body', message: 'Request body is required' },
-      ]),
+      error: validationError(formatZodErrors(result.error)),
     }
   }
 
-  const request = body as Record<string, unknown>
-  const errors: FieldError[] = []
-
-  // Validate 'from'
-  if (!request.from) {
-    errors.push({ field: 'from', message: 'Sender address is required' })
-  } else if (!isValidEmailAddress(request.from as EmailAddressInput)) {
-    errors.push({ field: 'from', message: 'Invalid sender email address' })
-  }
-
-  // Validate 'to'
-  if (!request.to) {
-    errors.push({ field: 'to', message: 'At least one recipient is required' })
-  } else if (!Array.isArray(request.to) || request.to.length === 0) {
-    errors.push({
-      field: 'to',
-      message: 'Recipients must be a non-empty array',
-    })
-  } else if (request.to.length > 50) {
-    errors.push({ field: 'to', message: 'Maximum 50 recipients per email' })
-  } else {
-    const invalidRecipients = (request.to as EmailAddressInput[]).filter(
-      addr => !isValidEmailAddress(addr),
-    )
-    if (invalidRecipients.length > 0) {
-      errors.push({
-        field: 'to',
-        message: 'One or more recipient addresses are invalid',
-      })
-    }
-  }
-
-  // Validate 'subject'
-  if (!request.subject || typeof request.subject !== 'string') {
-    errors.push({ field: 'subject', message: 'Subject is required' })
-  } else if (request.subject.length > 998) {
-    errors.push({
-      field: 'subject',
-      message: 'Subject cannot exceed 998 characters',
-    })
-  }
-
-  // Validate 'content'
-  if (!request.content || typeof request.content !== 'object') {
-    errors.push({ field: 'content', message: 'Content is required' })
-  } else {
-    const content = request.content as Record<string, unknown>
-    if (!content.html && !content.text) {
-      errors.push({
-        field: 'content',
-        message: 'Either html or text content is required',
-      })
-    }
-  }
-
-  // Validate 'tags'
-  if (request.tags !== undefined) {
-    if (!Array.isArray(request.tags)) {
-      errors.push({ field: 'tags', message: 'Tags must be an array' })
-    } else if (request.tags.length > 5) {
-      errors.push({ field: 'tags', message: 'Maximum 5 tags per email' })
-    }
-  }
-
-  if (errors.length > 0) {
-    return { valid: false, error: validationError(errors) }
-  }
-
-  return { valid: true, data: request as unknown as UniversalEmailRequest }
+  return { valid: true, data: result.data as UniversalEmailRequest }
 }
 
 export function validateBatchRequest(
   body: unknown,
 ): ValidationResult & { data?: BatchEmailRequest } {
-  if (!body || typeof body !== 'object') {
+  const result = batchRequestSchema.safeParse(body)
+
+  if (!result.success) {
     return {
       valid: false,
-      error: validationError([
-        { field: 'body', message: 'Request body is required' },
-      ]),
+      error: validationError(formatZodErrors(result.error)),
     }
   }
 
-  const request = body as Record<string, unknown>
-  const errors: FieldError[] = []
-
-  if (!request.emails) {
-    errors.push({ field: 'emails', message: 'Emails array is required' })
-  } else if (!Array.isArray(request.emails)) {
-    errors.push({ field: 'emails', message: 'Emails must be an array' })
-  } else if (request.emails.length === 0) {
-    errors.push({ field: 'emails', message: 'At least one email is required' })
-  } else if (request.emails.length > 1000) {
-    errors.push({ field: 'emails', message: 'Maximum 1000 emails per batch' })
-  } else {
-    // Validate each email in the batch
-    for (let i = 0; i < request.emails.length; i++) {
-      const emailResult = validateEmailRequest(request.emails[i])
-      if (!emailResult.valid && emailResult.error) {
-        const emailErrors = emailResult.error.error.details?.fields as
-          | FieldError[]
-          | undefined
-        if (emailErrors) {
-          for (const err of emailErrors) {
-            errors.push({
-              field: `emails[${i}].${err.field}`,
-              message: err.message,
-            })
-          }
-        }
-      }
-    }
-  }
-
-  if (errors.length > 0) {
-    return { valid: false, error: validationError(errors) }
-  }
-
-  return { valid: true, data: request as unknown as BatchEmailRequest }
+  return { valid: true, data: result.data as unknown as BatchEmailRequest }
 }

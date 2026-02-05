@@ -73,6 +73,7 @@ class JobStore {
     if (!job || index >= job.results.length) return
 
     const emailResult = job.results[index]
+    if (!emailResult) return
     const wasPending = emailResult.status === 'pending'
 
     emailResult.status = result.status

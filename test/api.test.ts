@@ -3,13 +3,19 @@ import { Hono } from 'hono'
 import { createApiRoutes } from '../src/api/routes'
 import { registry } from '../src/core/registry'
 import type { EmailProvider } from '../src/core/provider'
-import type { Email, SendResult } from '../src/core/types'
+import type { Email, SendResult, ProviderCapabilities } from '../src/core/types'
 
 // Mock provider for testing
 class MockProvider implements EmailProvider {
   readonly name = 'mock'
   readonly batchSize = 100
   readonly rateLimit = 10
+  readonly capabilities: ProviderCapabilities = {
+    batch: true,
+    tracking: true,
+    events: false,
+    suppressions: false,
+  }
   public sentEmails: Email[] = []
   public lastApiKey: string | null = null
 

@@ -9,8 +9,8 @@ function normalizeAddress(addr: EmailAddressInput): string {
 function extractEmail(addr: EmailAddressInput): string {
   if (typeof addr === 'string') {
     // Extract email from "Name <email>" format if present
-    const match = /<([^>]+)>/.exec(addr)
-    return match ? match[1] : addr
+    const match = addr.match(/<([^>]+)>/)
+    return match?.[1] ?? addr
   }
   return addr.email
 }

@@ -54,7 +54,7 @@ class MockProvider implements EmailProvider {
 
   private messageId = 0
 
-  async sendBatch(emails: Email[]): Promise<SendResult[]> {
+  async sendBatch(emails: Email[], _apiKey: string): Promise<SendResult[]> {
     return emails.map(() => ({
       id: `mock-id-${this.messageId++}`,
       status: 'queued' as const,
@@ -131,6 +131,7 @@ describe('Universal API v1', () => {
             to: [{ email: 'recipient@test.com' }],
             subject: 'Test',
             content: { text: 'Hello' },
+            provider: 'mock',
           }),
         }),
       )
@@ -172,6 +173,7 @@ describe('Universal API v1', () => {
               text: 'Hello',
             },
             tags: ['test'],
+            provider: 'mock',
           }),
         }),
       )
@@ -198,6 +200,7 @@ describe('Universal API v1', () => {
             to: ['recipient@test.com'],
             subject: 'Test',
             content: { text: 'Hello' },
+            provider: 'mock',
           }),
         }),
       )
@@ -217,6 +220,97 @@ describe('Universal API v1', () => {
             to: ['also-not-an-email'],
             subject: 'Test',
             content: { text: 'Hello' },
+            provider: 'mock',
+          }),
+        }),
+      )
+      expect(res.status).toBe(400)
+    })
+
+    it('requires provider field', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/api/v1/emails', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer test-key',
+          },
+          body: JSON.stringify({
+            from: 'sender@test.com',
+            to: ['recipient@test.com'],
+            subject: 'Test',
+            content: { text: 'Hello' },
+            // no provider
+          }),
+        }),
+      )
+      expect(res.status).toBe(400)
+
+      const body = (await res.json()) as ErrorResponse
+      expect(body.error.type).toBe('validation_error')
+    })
+
+    it('accepts provider in request body', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/api/v1/emails', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer test-key',
+          },
+          body: JSON.stringify({
+            from: 'sender@test.com',
+            to: ['recipient@test.com'],
+            subject: 'Test',
+            content: { text: 'Hello' },
+            provider: 'mock',
+          }),
+        }),
+      )
+      expect(res.status).toBe(200)
+
+      const body = (await res.json()) as EmailResponse
+      expect(body.provider).toBe('mock')
+    })
+
+    it('returns 400 for unknown provider', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/api/v1/emails', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer test-key',
+          },
+          body: JSON.stringify({
+            from: 'sender@test.com',
+            to: ['recipient@test.com'],
+            subject: 'Test',
+            content: { text: 'Hello' },
+            provider: 'nonexistent',
+          }),
+        }),
+      )
+      expect(res.status).toBe(400)
+
+      const body = (await res.json()) as ErrorResponse
+      expect(body.error.type).toBe('validation_error')
+      expect(body.error.code).toBe('invalid_provider')
+    })
+
+    it('rejects empty provider string', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/api/v1/emails', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer test-key',
+          },
+          body: JSON.stringify({
+            from: 'sender@test.com',
+            to: ['recipient@test.com'],
+            subject: 'Test',
+            content: { text: 'Hello' },
+            provider: '',
           }),
         }),
       )
@@ -234,6 +328,7 @@ describe('Universal API v1', () => {
             Authorization: 'Bearer test-key',
           },
           body: JSON.stringify({
+            provider: 'mock',
             emails: [
               {
                 from: { email: 'sender@test.com' },
@@ -270,6 +365,7 @@ describe('Universal API v1', () => {
             Authorization: 'Bearer test-key',
           },
           body: JSON.stringify({
+            provider: 'mock',
             emails: [
               {
                 from: { email: 'sender@test.com' },
@@ -283,6 +379,58 @@ describe('Universal API v1', () => {
 
       const body = (await res.json()) as ErrorResponse
       expect(body.error.type).toBe('validation_error')
+    })
+
+    it('accepts provider at batch level', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/api/v1/emails/batch', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer test-key',
+          },
+          body: JSON.stringify({
+            provider: 'mock',
+            emails: [
+              {
+                from: { email: 'sender@test.com' },
+                to: [{ email: 'recipient@test.com' }],
+                subject: 'Test',
+                content: { text: 'Hello' },
+              },
+            ],
+          }),
+        }),
+      )
+      expect(res.status).toBe(202)
+    })
+
+    it('returns 400 for unknown provider in batch', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/api/v1/emails/batch', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer test-key',
+          },
+          body: JSON.stringify({
+            provider: 'nonexistent',
+            emails: [
+              {
+                from: { email: 'sender@test.com' },
+                to: [{ email: 'recipient@test.com' }],
+                subject: 'Test',
+                content: { text: 'Hello' },
+              },
+            ],
+          }),
+        }),
+      )
+      expect(res.status).toBe(400)
+
+      const body = (await res.json()) as ErrorResponse
+      expect(body.error.type).toBe('validation_error')
+      expect(body.error.code).toBe('invalid_provider')
     })
   })
 
@@ -310,6 +458,7 @@ describe('Universal API v1', () => {
             Authorization: 'Bearer test-key',
           },
           body: JSON.stringify({
+            provider: 'mock',
             emails: [
               {
                 from: { email: 'sender@test.com' },

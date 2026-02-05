@@ -5,6 +5,7 @@ import { logger } from '../../../utils/logger'
 import { toInternalEmail, toInternalEmails } from '../transformer'
 import { validateEmailRequest, validateBatchRequest } from '../validation'
 import { jobStore, JobStoreFullError } from '../../../services/job-store'
+import type { AuthContext } from '../auth'
 
 function generateId(prefix: string): string {
   const timestamp = Date.now().toString(36)
@@ -21,23 +22,24 @@ export async function handleSendEmail(c: Context) {
       return c.json(validation.error, 400)
     }
 
-    const providerName = process.env.MAIL_PROVIDER ?? 'resend'
+    const providerName = validation.data.provider
 
     if (!registry.has(providerName)) {
       const error: APIError = {
         error: {
-          type: 'server_error',
-          code: 'provider_not_configured',
-          message: `Email provider "${providerName}" is not configured`,
+          type: 'validation_error',
+          code: 'invalid_provider',
+          message: `Unknown provider "${providerName}". Available: ${registry.list().join(', ')}`,
         },
       }
-      return c.json(error, 500)
+      return c.json(error, 400)
     }
 
     const provider = registry.get(providerName)
     const email = toInternalEmail(validation.data)
+    const { apiKey } = c.get('auth') as AuthContext
 
-    const results = await provider.sendBatch([email])
+    const results = await provider.sendBatch([email], apiKey)
     const result = results[0]
 
     if (!result || result.status === 'failed') {
@@ -85,24 +87,26 @@ export async function handleSendBatch(c: Context) {
       return c.json(validation.error, 400)
     }
 
-    const providerName = process.env.MAIL_PROVIDER ?? 'resend'
+    const providerName = validation.data.provider
 
     if (!registry.has(providerName)) {
       const error: APIError = {
         error: {
-          type: 'server_error',
-          code: 'provider_not_configured',
-          message: `Email provider "${providerName}" is not configured`,
+          type: 'validation_error',
+          code: 'invalid_provider',
+          message: `Unknown provider "${providerName}". Available: ${registry.list().join(', ')}`,
         },
       }
-      return c.json(error, 500)
+      return c.json(error, 400)
     }
 
     // Create job
     const jobId = generateId('job')
     const emails = toInternalEmails(validation.data.emails)
+    const { apiKey } = c.get('auth') as AuthContext
     const recipients = validation.data.emails.map(e => {
       const to = e.to[0]
+      if (!to) return ''
       return typeof to === 'string' ? to : to.email
     })
 
@@ -124,7 +128,7 @@ export async function handleSendBatch(c: Context) {
     }
 
     // Process in background with error handling
-    processJobAsync(jobId, emails, providerName).catch(error => {
+    processJobAsync(jobId, emails, providerName, apiKey).catch(error => {
       logger.error('Unhandled job processing error', {
         jobId,
         error: error instanceof Error ? error.message : String(error),
@@ -162,16 +166,18 @@ async function processJobAsync(
   jobId: string,
   emails: ReturnType<typeof toInternalEmails>,
   providerName: string,
+  apiKey: string,
 ) {
   try {
     jobStore.updateStatus(jobId, 'processing')
 
     const provider = registry.get(providerName)
-    const results = await provider.sendBatch(emails)
+    const results = await provider.sendBatch(emails, apiKey)
 
     // Update job with results
     for (let i = 0; i < results.length; i++) {
       const result = results[i]
+      if (!result) continue
       jobStore.updateEmailResult(jobId, i, {
         status: result.status,
         provider_id: result.id,
