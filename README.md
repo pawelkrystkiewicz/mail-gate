@@ -89,16 +89,101 @@ bun run src/index.ts
 
 ## Configuring Ghost CMS
 
-Ghost stores Mailgun settings in its database. You need to update two settings:
+### Understanding Ghost's Two Email Systems
 
-### Step 1: Get Your Provider API Key
+Ghost CMS uses **two completely separate email systems**. This is a common source of confusion — setting up one does NOT configure the other.
+
+| | Transactional (SMTP) | Bulk / Newsletters (Mailgun API) |
+|---|---|---|
+| **Purpose** | Magic login links, password resets, signup confirmations, staff invites | Newsletters, mass email campaigns |
+| **Protocol** | SMTP | HTTP API (Mailgun-compatible) |
+| **Configured via** | Environment variables or hosting panel (e.g., Coolify UI) | Ghost database or Ghost Admin UI |
+| **mail-gate role** | ❌ **Not involved** — connect directly to your provider's SMTP | ✅ **This is what mail-gate handles** |
+
+> ⚠️ **Important:** Both systems must be configured separately. Setting up mail-gate alone will NOT fix transactional emails (login links, password resets). Setting up SMTP alone will NOT enable newsletters.
+
+---
+
+### Step 1: Configure Transactional Email (SMTP)
+
+This step is **independent of mail-gate**. You need to point Ghost's SMTP configuration directly at your email provider's SMTP server.
+
+#### UniOne SMTP Configuration
+
+**EU Region:**
+```bash
+mail__transport=SMTP
+mail__options__host=smtp.eu1.unione.io
+mail__options__port=587
+mail__options__secure=false
+mail__options__auth__user=<UniOne User ID from dashboard>
+mail__options__auth__pass=<UniOne API key from Account → Security>
+```
+
+**US Region:**
+```bash
+mail__transport=SMTP
+mail__options__host=smtp.us1.unione.io
+mail__options__port=587
+mail__options__secure=false
+mail__options__auth__user=<UniOne User ID from dashboard>
+mail__options__auth__pass=<UniOne API key from Account → Security>
+```
+
+#### Resend SMTP Configuration
+
+```bash
+mail__transport=SMTP
+mail__options__host=smtp.resend.com
+mail__options__port=587
+mail__options__secure=false
+mail__options__auth__user=resend
+mail__options__auth__pass=re_xxxxxxxxxxxx
+```
+
+#### Coolify Users
+
+These environment variables map to Coolify's "Service Specific Configuration" fields:
+
+| Coolify Field | Environment Variable |
+|---------------|---------------------|
+| Ghost Mail Host | `mail__options__host` |
+| Ghost Mail Port | `mail__options__port` |
+| Ghost Mail Secure | `mail__options__secure` |
+| Ghost Mail User | `mail__options__auth__user` |
+| Ghost Mail Password | `mail__options__auth__pass` |
+| Ghost Mail Service | **Leave empty** when using custom host |
+
+> ⚠️ **Common Mistake:** Do NOT put mail-gate's HTTP URL in the SMTP host field. The SMTP host expects a hostname like `smtp.eu1.unione.io`, not an HTTP URL like `http://mail-gate:4050`.
+
+---
+
+### Step 2: Configure Bulk Email via mail-gate
+
+This is the core mail-gate setup for newsletters and mass email campaigns.
+
+#### Option A: Via Ghost Admin UI
+
+1. Go to **Ghost Admin → Settings → Email newsletter → Mailgun configuration**
+2. Set **Mailgun domain** to your sending domain (e.g., `newsletter.yourdomain.com`)
+3. Set **Mailgun API key** to `provider:apikey` format:
+   - Resend: `resend:re_xxxxxxxxxxxx`
+   - UniOne: `unione:your-api-key`
+4. Set **Mailgun base URL / region** to your mail-gate instance URL with `/v3` path:
+   - `https://mailing.yourdomain.com/v3`
+
+> **Note:** Ghost sends Basic Auth as `api:<mailgun_api_key>`, so if your API key is `resend:re_xxx`, Ghost sends `api:resend:re_xxx`. mail-gate parses the provider and key from the password field.
+
+#### Option B: Via Database
+
+If Ghost Admin doesn't expose the base URL field, update the database directly.
+
+**Get your provider API key:**
 
 - **Resend**: Get your API key from [resend.com/api-keys](https://resend.com/api-keys)
 - **UniOne**: Get your API key from the UniOne dashboard
 
-### Step 2: Update Ghost Database
-
-Connect to your Ghost database:
+**Connect to your Ghost database:**
 
 ```bash
 # Docker (MySQL)
@@ -111,29 +196,30 @@ docker exec -it ghost ls /var/lib/ghost/content/data/
 mysql -u ghost -p ghost
 ```
 
-Then run these SQL commands:
+**Run these SQL commands:**
 
 ```sql
 -- Point Ghost to mail-gate instead of Mailgun
-UPDATE settings
-SET value = 'http://localhost:4050/v3'
-WHERE `key` = 'mailgun_base_url';
+UPDATE settings SET value = 'http://localhost:4050/v3' WHERE `key` = 'mailgun_base_url';
 
 -- Set your API key in "provider:apikey" format
-UPDATE settings
-SET value = 'resend:re_xxxxxxxxxxxx'
-WHERE `key` = 'mailgun_api_key';
+UPDATE settings SET value = 'resend:re_xxxxxxxxxxxx' WHERE `key` = 'mailgun_api_key';
+
+-- Set your sending domain
+UPDATE settings SET value = 'newsletter.yourdomain.com' WHERE `key` = 'mailgun_domain';
 ```
 
 **If using Docker Compose** with Ghost and mail-gate in the same network:
 
 ```sql
-UPDATE settings
-SET value = 'http://mail-gate:4050/v3'
-WHERE `key` = 'mailgun_base_url';
+UPDATE settings SET value = 'http://mail-gate:4050/v3' WHERE `key` = 'mailgun_base_url';
 ```
 
+---
+
 ### Step 3: Restart Ghost
+
+Ghost caches settings in memory. **You must restart Ghost after changing database settings.**
 
 ```bash
 # Docker
@@ -141,11 +227,23 @@ docker restart ghost
 
 # Ghost-CLI
 ghost restart
+
+# Coolify
+# Use the Coolify UI to restart the Ghost service
 ```
 
-### Step 4: Test Your Setup
+---
 
-Send a test newsletter from Ghost Admin. Check mail-gate logs to verify the request is being processed:
+### Step 4: Verify Your Setup
+
+#### Verification Checklist
+
+- [ ] **Transactional email works** — Test by logging in to Ghost Admin with a magic link
+- [ ] **mail-gate is reachable** — Run from Ghost container: `curl http://mail-gate:4050/health`
+- [ ] **Newsletter sending works** — Send a test newsletter from Ghost Admin
+- [ ] **Check mail-gate logs** — Verify incoming requests and successful forwarding
+
+**Check mail-gate logs:**
 
 ```bash
 # Docker
@@ -154,6 +252,29 @@ docker compose logs -f mail-gate
 # Local
 # Logs appear in terminal
 ```
+
+---
+
+### Coolify / Docker Deployment Notes
+
+#### Internal vs External Access
+
+| Scenario | mail-gate URL |
+|----------|---------------|
+| Ghost and mail-gate in same Docker network | `http://mail-gate:4050/v3` |
+| mail-gate exposed via reverse proxy | `https://mailing.yourdomain.com/v3` |
+
+- If Ghost and mail-gate are in the **same Coolify project** (same Docker network), use the container name: `http://mail-gate:4050/v3`
+- If mail-gate has a **public domain** via reverse proxy, use: `https://mailing.yourdomain.com/v3`
+- mail-gate does **not** need to be publicly accessible if Ghost can reach it over the internal Docker network
+
+#### Common Coolify Mistakes
+
+> ⚠️ The SMTP settings in Coolify UI (Ghost Mail Host, Ghost Mail Port, etc.) are for **transactional email only**. They have nothing to do with mail-gate or newsletter sending.
+
+> ⚠️ Don't confuse the two configurations:
+> - **SMTP Host** (for transactional): `smtp.eu1.unione.io` or `smtp.resend.com`
+> - **Mailgun Base URL** (for newsletters via mail-gate): `http://mail-gate:4050/v3`
 
 ## Configuration
 
