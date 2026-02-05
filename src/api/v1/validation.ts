@@ -28,11 +28,17 @@ function validationError(fields: FieldError[]): APIError {
 
 function isValidEmailAddress(addr: EmailAddressInput): boolean {
   const email = typeof addr === 'string' ? addr : addr.email
-  // Basic email validation
-  return (
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
-    /<[^\s@]+@[^\s@]+\.[^\s@]+>$/.test(email)
-  )
+
+  // Extract email from "Name <email>" format if present
+  const match = /<([^>]+)>/.exec(email)
+  const cleanEmail = match ? match[1] : email
+
+  // More robust email validation regex
+  // - Local part: alphanumeric plus ._%+-
+  // - Domain: alphanumeric plus .-
+  // - TLD: at least 2 characters
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+  return emailRegex.test(cleanEmail)
 }
 
 export function validateEmailRequest(

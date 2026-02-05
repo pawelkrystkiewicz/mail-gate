@@ -1,12 +1,26 @@
 import type { Job, JobStatus } from '../core/types'
 
+export class JobStoreFullError extends Error {
+  constructor() {
+    super('Job store at capacity, try again later')
+    this.name = 'JobStoreFullError'
+  }
+}
+
 class JobStore {
   private jobs = new Map<string, Job>()
   private readonly maxJobs = 1000
   private readonly jobTTL = 24 * 60 * 60 * 1000 // 24 hours
 
   create(id: string, recipients: string[]): Job {
-    this.cleanup()
+    // Check capacity before creating
+    if (this.jobs.size >= this.maxJobs) {
+      this.cleanup()
+      // Still full after cleanup? Reject the request
+      if (this.jobs.size >= this.maxJobs) {
+        throw new JobStoreFullError()
+      }
+    }
 
     const job: Job = {
       id,

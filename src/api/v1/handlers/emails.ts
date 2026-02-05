@@ -4,7 +4,7 @@ import type { UniversalEmailResponse, APIError } from '../../../core/types'
 import { logger } from '../../../utils/logger'
 import { toInternalEmail, toInternalEmails } from '../transformer'
 import { validateEmailRequest, validateBatchRequest } from '../validation'
-import { jobStore } from '../../../services/job-store'
+import { jobStore, JobStoreFullError } from '../../../services/job-store'
 
 function generateId(prefix: string): string {
   const timestamp = Date.now().toString(36)
@@ -106,10 +106,31 @@ export async function handleSendBatch(c: Context) {
       return typeof to === 'string' ? to : to.email
     })
 
-    const job = jobStore.create(jobId, recipients)
+    let job
+    try {
+      job = jobStore.create(jobId, recipients)
+    } catch (error) {
+      if (error instanceof JobStoreFullError) {
+        const apiError: APIError = {
+          error: {
+            type: 'rate_limit_error',
+            code: 'too_many_jobs',
+            message: 'Too many pending jobs, please try again later',
+          },
+        }
+        return c.json(apiError, 429)
+      }
+      throw error
+    }
 
-    // Process in background
-    void processJobAsync(jobId, emails, providerName)
+    // Process in background with error handling
+    processJobAsync(jobId, emails, providerName).catch(error => {
+      logger.error('Unhandled job processing error', {
+        jobId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      jobStore.updateStatus(jobId, 'failed')
+    })
 
     return c.json(
       {
