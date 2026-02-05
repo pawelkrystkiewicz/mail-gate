@@ -18,9 +18,14 @@ mail-gate is a Mailgun API compatibility middleware that allows Ghost CMS (and o
 ```
 src/
 ├── api/           # API routes and handlers
-│   ├── auth.ts    # Basic auth middleware
+│   ├── auth.ts    # Basic auth middleware (Mailgun API)
 │   ├── messages.ts # POST /v3/:domain/messages handler
-│   └── routes.ts  # Route definitions
+│   ├── routes.ts  # Mailgun route definitions
+│   └── v1/        # Universal API v1
+│       ├── auth.ts    # Bearer + X-Provider auth middleware
+│       ├── jobs.ts    # Batch job tracking
+│       ├── routes.ts  # Universal API routes
+│       └── types.ts   # Request/response types
 ├── core/          # Core abstractions
 │   ├── provider.ts    # EmailProvider interface
 │   ├── registry.ts    # Provider registry
@@ -69,20 +74,26 @@ Copy `.env.example` to `.env` and configure:
 | `UNIONE_REGION` | No | `eu` (default) or `us` |
 | `PORT` | No | Server port (default: 4050) |
 | `LOG_LEVEL` | No | `debug`, `info`, `warn`, `error` |
+| `ALLOWED_ORIGINS` | Yes | Comma-separated CORS origins |
 
-**Note:** API keys are provided per-request via Basic Auth (`provider:apikey` format), not via environment variables.
+**Note:** API keys are provided per-request via headers, not via environment variables.
 
 ## Key Files
 
 - [src/index.ts](src/index.ts) - Application entry, provider initialization
-- [src/api/messages.ts](src/api/messages.ts) - Main email sending endpoint
+- [src/api/messages.ts](src/api/messages.ts) - Mailgun email sending endpoint
+- [src/api/v1/routes.ts](src/api/v1/routes.ts) - Universal API endpoints
 - [src/core/transformer.ts](src/core/transformer.ts) - Mailgun format parsing
 - [src/providers/resend/index.ts](src/providers/resend/index.ts) - Resend implementation
 - [src/providers/unione/index.ts](src/providers/unione/index.ts) - UniOne implementation
 
 ## Authentication
 
-mail-gate uses stateless authentication. API keys are provided per-request via Basic Auth:
+mail-gate provides two APIs with different authentication methods:
+
+### Mailgun-compatible API (`/v3`)
+
+Uses Basic Auth with `provider:apikey` format:
 
 ```http
 Authorization: Basic base64(provider:apikey)
@@ -90,12 +101,44 @@ Authorization: Basic base64(provider:apikey)
 
 Examples: `resend:re_xxxxxxxxxxxx` or `unione:your-api-key`
 
+### Universal API (`/api/v1`)
+
+Uses Bearer token or X-API-Key header with X-Provider header:
+
+```http
+Authorization: Bearer <apikey>
+X-Provider: resend
+```
+
+Or:
+
+```http
+X-API-Key: <apikey>
+X-Provider: resend
+```
+
 ## API Endpoints
 
-| Method | Path                    | Auth | Description                      |
-|--------|-------------------------|------|----------------------------------|
-| GET    | `/health`               | No   | Health check                     |
-| POST   | `/v3/:domain/messages`  | Yes  | Send email (Mailgun-compatible)  |
+### Health & Discovery
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/health` | No | Health check |
+| GET | `/api/v1` | No | API info & feature discovery |
+
+### Mailgun-compatible API
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/v3/:domain/messages` | Basic | Send email (Mailgun format) |
+
+### Universal API
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/api/v1/emails` | Bearer | Send single email |
+| POST | `/api/v1/emails/batch` | Bearer | Send batch emails (async, returns 202) |
+| GET | `/api/v1/jobs/:id` | Bearer | Get batch job status |
 
 ## Adding a New Provider
 
@@ -109,7 +152,8 @@ Examples: `resend:re_xxxxxxxxxxxx` or `unione:your-api-key`
 
 Tests use Bun's built-in test runner. Key test files:
 
-- `test/api.test.ts` - API endpoint tests
+- `test/api.test.ts` - Mailgun API endpoint tests
+- `test/universal-api.test.ts` - Universal API endpoint tests
 - `test/transformer.test.ts` - Format transformation tests
 - `test/unione.test.ts` - UniOne provider tests
 - `test/batch.test.ts` - Batch processing tests
