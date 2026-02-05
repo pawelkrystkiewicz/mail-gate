@@ -1,59 +1,131 @@
 # mail-gate
 
-Middleware API that mimics Mailgun, allowing Ghost CMS (and other Mailgun-dependent apps) to use alternative email providers.
+**Drop-in Mailgun replacement for Ghost CMS** — Use Resend, UniOne, or other email providers instead of Mailgun.
 
-## Why?
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Bun](https://img.shields.io/badge/Bun-%23000000.svg?logo=bun&logoColor=white)](https://bun.sh)
+[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 
-Ghost CMS requires Mailgun for bulk email (newsletters), costing $14+/month even with zero usage. mail-gate lets you use free-tier providers like Resend (3,000 emails/month free) instead.
+> **Keywords:** Ghost CMS email, Mailgun alternative, Ghost newsletter, Resend Ghost integration, UniOne Ghost, free email for Ghost, Ghost bulk email, Mailgun API compatible, Ghost email provider, self-hosted email gateway
 
-## Supported Providers
+## What is mail-gate?
 
-| Provider | Status | Free Tier |
-|----------|--------|-----------|
-| Resend | ✅ Ready | 3,000/month |
-| UniOne | ✅ Ready | 6,000/month |
-| Amazon SES | 📋 Planned | 62,000/month (EC2) |
-| Postmark | 📋 Planned | 100/month |
-| SendGrid | 📋 Planned | 100/day |
+mail-gate is a **Mailgun API-compatible proxy** that lets you use alternative email providers with Ghost CMS (or any app that requires Mailgun). It translates Mailgun API calls to your preferred provider's format.
+
+### The Problem
+
+Ghost CMS **requires Mailgun** for sending newsletters and bulk email. Mailgun's minimum plan costs **$14+/month** — even if you send zero emails.
+
+### The Solution
+
+mail-gate acts as a drop-in replacement that:
+
+- Implements the **Mailgun API** that Ghost expects
+- Routes emails through **free-tier providers** like Resend or UniOne
+- Requires **zero code changes** to Ghost
+- Works with **any Mailgun-dependent application**
+- Also provides a **Universal API** for non-Ghost applications
+
+## Supported Email Providers
+
+| Provider | Status | Free Tier | Notes |
+|----------|--------|-----------|-------|
+| [Resend](https://resend.com) | ✅ Ready | 3,000/month | Great developer experience |
+| [UniOne](https://unione.io) | ✅ Ready | 6,000/month | EU and US regions |
+| Amazon SES | 📋 Planned | 62,000/month (EC2) | Coming soon |
+| Postmark | 📋 Planned | 100/month | Coming soon |
+| SendGrid | 📋 Planned | 100/day | Coming soon |
 
 ## Quick Start
 
-### 1. Install dependencies
+### Option 1: Docker (Recommended)
 
 ```bash
-bun install
-```
+# Clone the repository
+git clone https://github.com/pawelkrystkiewicz/mail-gate.git
+cd mail-gate
 
-### 2. Configure environment
-
-```bash
+# Configure environment
 cp .env.example .env
 # Edit .env - ALLOWED_ORIGINS is required for CORS
+
+# Start the server
+docker compose up -d
+
+# Check logs
+docker compose logs -f
 ```
 
-### 3. Run the server
+### Option 2: Run with Bun
 
 ```bash
+# Clone the repository
+git clone https://github.com/pawelkrystkiewicz/mail-gate.git
+cd mail-gate
+
+# Install dependencies
+bun install
+
+# Configure environment
+cp .env.example .env
+# Edit .env - ALLOWED_ORIGINS is required for CORS
+
+# Start the server
+bun run start
+
+# Or for development with hot reload
 bun run dev
 ```
 
-### 4. Configure Ghost
+### Option 3: Run from Source
 
-Update Ghost's Mailgun settings in the database:
+```bash
+git clone https://github.com/pawelkrystkiewicz/mail-gate.git
+cd mail-gate
+bun install
+cp .env.example .env
+bun run src/index.ts
+```
+
+## Configuring Ghost CMS
+
+Ghost stores Mailgun settings in its database. You need to update two settings:
+
+### Step 1: Get Your Provider API Key
+
+- **Resend**: Get your API key from [resend.com/api-keys](https://resend.com/api-keys)
+- **UniOne**: Get your API key from the UniOne dashboard
+
+### Step 2: Update Ghost Database
+
+Connect to your Ghost database:
+
+```bash
+# Docker (MySQL)
+docker exec -it ghost-db mysql -u root -p ghost
+
+# Docker (SQLite) - find the database file
+docker exec -it ghost ls /var/lib/ghost/content/data/
+
+# Local Ghost installation
+mysql -u ghost -p ghost
+```
+
+Then run these SQL commands:
 
 ```sql
--- Set the mail-gate URL
+-- Point Ghost to mail-gate instead of Mailgun
 UPDATE settings
-SET value = 'http://127.0.0.1:4050/v3'
+SET value = 'http://localhost:4050/v3'
 WHERE `key` = 'mailgun_base_url';
 
--- Set the API key in provider:apikey format
+-- Set your API key in "provider:apikey" format
 UPDATE settings
 SET value = 'resend:re_xxxxxxxxxxxx'
 WHERE `key` = 'mailgun_api_key';
 ```
 
-Or if using Docker, point to your mail-gate container:
+**If using Docker Compose** with Ghost and mail-gate in the same network:
 
 ```sql
 UPDATE settings
@@ -61,24 +133,46 @@ SET value = 'http://mail-gate:4050/v3'
 WHERE `key` = 'mailgun_base_url';
 ```
 
-## Docker
-
-### Build and run
+### Step 3: Restart Ghost
 
 ```bash
-docker compose up -d
+# Docker
+docker restart ghost
+
+# Ghost-CLI
+ghost restart
 ```
 
-### Environment variables
+### Step 4: Test Your Setup
+
+Send a test newsletter from Ghost Admin. Check mail-gate logs to verify the request is being processed:
+
+```bash
+# Docker
+docker compose logs -f mail-gate
+
+# Local
+# Logs appear in terminal
+```
+
+## Configuration
+
+### Environment Variables
 
 | Variable | Required | Description | Default |
 |----------|----------|-------------|---------|
 | `ALLOWED_ORIGINS` | Yes | Comma-separated CORS origins | - |
-| `UNIONE_REGION` | No | UniOne region (`eu`, `us`) | `eu` |
 | `PORT` | No | Server port | `4050` |
-| `LOG_LEVEL` | No | Log level (debug/info/warn/error) | `info` |
+| `UNIONE_REGION` | No | UniOne region (`eu` or `us`) | `eu` |
+| `LOG_LEVEL` | No | Log verbosity (`debug`, `info`, `warn`, `error`) | `info` |
 
-> **Note:** API keys are provided per-request via headers (see [Authentication](#authentication) below). No API keys are stored in environment variables.
+Copy `.env.example` to `.env` to customize:
+
+```bash
+cp .env.example .env
+```
+
+> **Note:** API keys are provided per-request via headers, not stored in environment variables. This allows multiple providers and keys without restarting the server.
 
 ## APIs
 
@@ -95,13 +189,16 @@ mail-gate provides two APIs:
 
 Uses HTTP Basic Auth with `provider:apikey` format:
 
-```http
+```
 Authorization: Basic base64(provider:apikey)
 ```
 
-**Examples:**
-- Resend: `resend:re_xxxxxxxxxxxx`
-- UniOne: `unione:your-unione-api-key`
+| Provider | Example |
+|----------|---------|
+| Resend | `resend:re_xxxxxxxxxxxx` |
+| UniOne | `unione:your-api-key-here` |
+
+Ghost handles this automatically once you set `mailgun_api_key` in the database.
 
 ### Universal API (`/api/v1`)
 
@@ -137,10 +234,10 @@ curl http://localhost:4050/api/v1
 # Send email using Resend
 curl -X POST http://localhost:4050/v3/your-domain.com/messages \
   -u "resend:re_xxxxxxxxxxxx" \
-  -F "from=sender@example.com" \
+  -F "from=Your Name <sender@yourdomain.com>" \
   -F "to=recipient@example.com" \
-  -F "subject=Test Email" \
-  -F "html=<p>Hello World</p>"
+  -F "subject=Hello from mail-gate" \
+  -F "html=<h1>It works!</h1>"
 ```
 
 ### Universal API
@@ -188,26 +285,94 @@ curl http://localhost:4050/api/v1/jobs/{jobId} \
 | POST | `/api/v1/emails/batch` | Bearer | Send batch emails (returns 202) |
 | GET | `/api/v1/jobs/:id` | Bearer | Get batch job status |
 
+## Architecture
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────────┐
+│  Ghost CMS  │────▶│  mail-gate  │────▶│  Email Provider │
+│             │     │ (Mailgun API)│     │ (Resend/UniOne) │
+└─────────────┘     └─────────────┘     └─────────────────┘
+       or
+┌─────────────┐     ┌─────────────┐     ┌─────────────────┐
+│  Your App   │────▶│  mail-gate  │────▶│  Email Provider │
+│             │     │(Universal API)│    │ (Resend/UniOne) │
+└─────────────┘     └─────────────┘     └─────────────────┘
+```
+
+1. Ghost/App sends email via Mailgun API or Universal API format
+2. mail-gate receives and transforms the request
+3. Request is forwarded to your chosen provider
+4. Response is translated back to the expected format
+
 ## Testing
 
 ```bash
 bun test
 ```
 
-## Architecture
+## Troubleshooting
 
-```
-Ghost CMS → mail-gate (Mailgun API Layer) → Provider Adapter → Resend/UniOne/etc.
-     or
-Your App  → mail-gate (Universal API)    → Provider Adapter → Resend/UniOne/etc.
-```
+### Ghost shows "Email failed to send"
 
-mail-gate implements the Mailgun API that Ghost expects, plus a modern Universal API for other applications. Requests are translated to the format required by your chosen email provider.
+1. **Check mail-gate is running:**
+   ```bash
+   curl http://localhost:4050/health
+   ```
+
+2. **Verify your API key format:**
+   - Must be `provider:apikey` (e.g., `resend:re_xxx`)
+   - Check for typos in the provider name
+
+3. **Check mail-gate logs for errors:**
+   ```bash
+   docker compose logs mail-gate
+   ```
+
+### Connection refused errors
+
+- Ensure mail-gate is accessible from Ghost
+- If using Docker, ensure both containers are on the same network
+- Check firewall rules if running on separate hosts
+
+### CORS errors
+
+- Ensure `ALLOWED_ORIGINS` is set in your `.env` file
+- Include all origins that will make requests to mail-gate
+
+### Emails not arriving
+
+1. Check your provider's dashboard for delivery status
+2. Verify your sending domain is configured in the provider
+3. Check spam folders
+4. Review provider-specific requirements (SPF, DKIM, etc.)
+
+### Rate limiting issues
+
+Each provider has different rate limits. See [docs/CAVEATS.md](docs/CAVEATS.md) for details.
 
 ## Documentation
 
-- [Caveats & Known Limitations](docs/CAVEATS.md) - Provider-specific limitations and optimization notes
+- [Caveats & Known Limitations](docs/CAVEATS.md) — Provider-specific limitations and optimization notes
+
+## Contributing
+
+Contributions are welcome! Here's how to get started:
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Make your changes
+4. Run tests: `bun test`
+5. Run linting: `bun run lint`
+6. Submit a pull request
+
+### Adding a New Provider
+
+See [CLAUDE.md](CLAUDE.md) for detailed instructions on implementing new email providers.
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE) for details.
+
+---
+
+**Found mail-gate useful?** Give it a ⭐ on GitHub!
