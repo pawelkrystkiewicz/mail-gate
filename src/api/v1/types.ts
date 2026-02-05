@@ -1,28 +1,38 @@
 // Universal API v1 Types
+import { z } from 'zod'
 
-// Email address can be a string or structured object
-export type EmailAddress =
-  | string
-  | {
-      email: string
-      name?: string
-    }
+// Email address schema - can be a string or structured object
+const EmailAddressObjectSchema = z.object({
+  email: z.email(),
+  name: z.string().optional(),
+})
 
-// Single email request
-export interface SendEmailRequest {
-  from: EmailAddress
-  to: EmailAddress | EmailAddress[]
-  subject: string
-  html?: string
-  text?: string
-  tags?: string[]
-  metadata?: Record<string, unknown>
-}
+const EmailAddressSchema = z.union([z.email(), EmailAddressObjectSchema])
 
-// Batch email request
-export interface BatchEmailRequest {
-  emails: SendEmailRequest[]
-}
+// Single email request schema
+export const SendEmailRequestSchema = z
+  .object({
+    from: EmailAddressSchema,
+    to: z.union([EmailAddressSchema, z.array(EmailAddressSchema).min(1)]),
+    subject: z.string().min(1),
+    html: z.string().optional(),
+    text: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+    metadata: z.record(z.unknown()).optional(),
+  })
+  .refine(data => data.html !== undefined || data.text !== undefined, {
+    message: 'Either html or text content is required',
+  })
+
+// Batch email request schema
+export const BatchEmailRequestSchema = z.object({
+  emails: z.array(SendEmailRequestSchema).min(1),
+})
+
+// Infer types from schemas
+export type EmailAddress = z.infer<typeof EmailAddressSchema>
+export type SendEmailRequest = z.infer<typeof SendEmailRequestSchema>
+export type BatchEmailRequest = z.infer<typeof BatchEmailRequestSchema>
 
 // Single email response
 export interface SendEmailResponse {

@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
+import type { ZodError } from 'zod'
 import { registry } from '../../core/registry'
 import { logger } from '../../utils/logger'
 import { bearerAuthMiddleware } from './auth'
@@ -12,7 +13,12 @@ import type {
   ApiErrorResponse,
   JobStatusResponse,
 } from './types'
-import { normalizeEmailAddress, normalizeEmailAddresses } from './types'
+import {
+  SendEmailRequestSchema,
+  BatchEmailRequestSchema,
+  normalizeEmailAddress,
+  normalizeEmailAddresses,
+} from './types'
 import type { Email } from '../../core/types'
 
 const MAX_BATCH_SIZE = 1000
@@ -28,6 +34,20 @@ function validationError(
     code,
     message,
     details,
+  }
+  return c.json(error, 400)
+}
+
+function zodValidationError(c: Context, zodError: ZodError): Response {
+  const issues = zodError.issues.map(e => ({
+    path: e.path.join('.'),
+    message: e.message,
+  }))
+  const error: ApiErrorResponse = {
+    type: 'validation_error',
+    code: 'invalid_request',
+    message: issues[0]?.message ?? 'Validation failed',
+    details: { issues },
   }
   return c.json(error, 400)
 }
@@ -57,14 +77,6 @@ function transformToInternal(request: SendEmailRequest): Email {
   }
 }
 
-function validateEmailRequest(request: SendEmailRequest): string | null {
-  if (!request.from) return 'from is required'
-  if (!request.to) return 'to is required'
-  if (!request.subject) return 'subject is required'
-  if (!request.html && !request.text) return 'html or text content is required'
-  return null
-}
-
 export function createUniversalApiRoutes(): Hono {
   const api = new Hono()
 
@@ -92,13 +104,14 @@ export function createUniversalApiRoutes(): Hono {
   // POST /api/v1/emails - Send single email
   api.post('/emails', async (c: Context) => {
     try {
-      const request = await c.req.json<SendEmailRequest>()
+      const body: unknown = await c.req.json()
+      const parseResult = SendEmailRequestSchema.safeParse(body)
 
-      const error = validateEmailRequest(request)
-      if (error) {
-        return validationError(c, 'invalid_request', error)
+      if (!parseResult.success) {
+        return zodValidationError(c, parseResult.error)
       }
 
+      const request = parseResult.data
       const email = transformToInternal(request)
       const providerName = c.get('provider') as string
       const apiKey = c.get('apiKey') as string
@@ -135,22 +148,14 @@ export function createUniversalApiRoutes(): Hono {
   // POST /api/v1/emails/batch - Send batch emails (async)
   api.post('/emails/batch', async (c: Context) => {
     try {
-      const body: Record<string, unknown> = await c.req.json()
-      const emailsArray = body.emails
+      const body: unknown = await c.req.json()
+      const parseResult = BatchEmailRequestSchema.safeParse(body)
 
-      if (!emailsArray || !Array.isArray(emailsArray)) {
-        return validationError(c, 'invalid_request', 'emails array is required')
+      if (!parseResult.success) {
+        return zodValidationError(c, parseResult.error)
       }
 
-      const emails = emailsArray as SendEmailRequest[]
-
-      if (emails.length === 0) {
-        return validationError(
-          c,
-          'invalid_request',
-          'emails array cannot be empty',
-        )
-      }
+      const { emails } = parseResult.data
 
       if (emails.length > MAX_BATCH_SIZE) {
         return validationError(
@@ -159,21 +164,6 @@ export function createUniversalApiRoutes(): Hono {
           `Batch size exceeds maximum of ${MAX_BATCH_SIZE}`,
           { maxBatchSize: MAX_BATCH_SIZE, requestedSize: emails.length },
         )
-      }
-
-      // Validate all emails
-      for (let i = 0; i < emails.length; i++) {
-        const emailReq = emails[i]
-        if (emailReq) {
-          const error = validateEmailRequest(emailReq)
-          if (error) {
-            return validationError(
-              c,
-              'invalid_request',
-              `Email at index ${i}: ${error}`,
-            )
-          }
-        }
       }
 
       const providerName = c.get('provider') as string
