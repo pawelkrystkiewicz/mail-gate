@@ -286,6 +286,10 @@ docker compose logs -f mail-gate
 | `PORT` | No | Server port | `4050` |
 | `UNIONE_REGION` | No | UniOne region (`eu` or `us`) | `eu` |
 | `LOG_LEVEL` | No | Log verbosity (`debug`, `info`, `warn`, `error`) | `info` |
+| `RATE_LIMIT_ENABLED` | No | Enable/disable rate limiting | `true` |
+| `RATE_LIMIT_SEND_PER_MINUTE` | No | Email endpoint rate limit per IP | `60` |
+| `RATE_LIMIT_HEALTH_PER_MINUTE` | No | Health endpoint rate limit per IP | `120` |
+| `RATE_LIMIT_GLOBAL_PER_MINUTE` | No | Global fallback rate limit per IP | `200` |
 
 Copy `.env.example` to `.env` to customize:
 
@@ -469,7 +473,21 @@ bun test
 
 ### Rate limiting issues
 
-Each provider has different rate limits. See [docs/CAVEATS.md](docs/CAVEATS.md) for details.
+mail-gate enforces per-IP rate limits to protect against abuse:
+
+| Endpoint | Default Limit |
+|----------|---------------|
+| `/v3/:domain/messages` | 60 req/min |
+| `/api/v1/emails`, `/api/v1/emails/batch` | 60 req/min |
+| `/health` | 120 req/min |
+| All other endpoints | 200 req/min |
+
+If you're hitting rate limits:
+- Check `X-RateLimit-Remaining` header to see your remaining quota
+- Wait for the time indicated in `Retry-After` header (on 429 responses)
+- Adjust limits via environment variables if you control the mail-gate instance
+
+See [docs/CAVEATS.md](docs/CAVEATS.md) for provider-specific rate limits.
 
 ## Documentation
 

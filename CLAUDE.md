@@ -37,7 +37,8 @@ src/
 ├── utils/         # Utilities
 │   ├── batch.ts   # Batch processing with rate limiting
 │   ├── email.ts   # Email parsing utilities
-│   └── logger.ts  # Structured logging
+│   ├── logger.ts  # Structured logging
+│   └── ratelimit.ts # Request rate limiting middleware
 └── index.ts       # Application entry point
 
 test/              # Test files
@@ -75,17 +76,22 @@ Copy `.env.example` to `.env` and configure:
 | `PORT` | No | Server port (default: 4050) |
 | `LOG_LEVEL` | No | `debug`, `info`, `warn`, `error` |
 | `ALLOWED_ORIGINS` | Yes | Comma-separated CORS origins |
+| `RATE_LIMIT_ENABLED` | No | Enable rate limiting (default: true) |
+| `RATE_LIMIT_SEND_PER_MINUTE` | No | Email endpoints limit (default: 60) |
+| `RATE_LIMIT_HEALTH_PER_MINUTE` | No | Health endpoint limit (default: 120) |
+| `RATE_LIMIT_GLOBAL_PER_MINUTE` | No | Global fallback limit (default: 200) |
 
 **Note:** API keys are provided per-request via headers, not via environment variables.
 
 ## Key Files
 
-- [src/index.ts](src/index.ts) - Application entry, provider initialization
+- [src/index.ts](src/index.ts) - Application entry, provider initialization, rate limiting setup
 - [src/api/messages.ts](src/api/messages.ts) - Mailgun email sending endpoint
 - [src/api/v1/routes.ts](src/api/v1/routes.ts) - Universal API endpoints
 - [src/core/transformer.ts](src/core/transformer.ts) - Mailgun format parsing
 - [src/providers/resend/index.ts](src/providers/resend/index.ts) - Resend implementation
 - [src/providers/unione/index.ts](src/providers/unione/index.ts) - UniOne implementation
+- [src/utils/ratelimit.ts](src/utils/ratelimit.ts) - Rate limiting middleware (sliding window)
 
 ## Authentication
 
@@ -158,4 +164,5 @@ Tests use Bun's built-in test runner. Key test files:
 - `test/unione.test.ts` - UniOne provider tests
 - `test/batch.test.ts` - Batch processing tests
 - `test/email.test.ts` - Email parsing tests
+- `test/ratelimit.test.ts` - Rate limiting tests
 - `test/performance.test.ts` - Performance benchmarks
