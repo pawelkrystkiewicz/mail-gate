@@ -5,9 +5,18 @@ import { createUniversalApiRoutes } from './api/v1'
 import { registry } from './core/registry'
 import { ResendProvider } from './providers/resend'
 import { logger } from './utils/logger'
+import {
+  rateLimiter,
+  loadRateLimitConfig,
+  mailgunRateLimitHandler,
+  universalApiRateLimitHandler,
+} from './utils/ratelimit'
 import { UniOneProvider, parseUniOneRegion } from './providers/unione'
 
 const app = new Hono()
+
+// Load rate limit configuration
+const rateLimitConfig = loadRateLimitConfig()
 
 // Parse ALLOWED_ORIGINS from environment
 function getAllowedOrigins(): string[] {
@@ -48,6 +57,61 @@ app.use(
     credentials: true,
   }),
 )
+
+// Apply rate limiting middleware (before routes, after CORS)
+if (rateLimitConfig.enabled) {
+  // Rate limit for health endpoint (more generous)
+  app.use(
+    '/health',
+    rateLimiter({
+      limit: rateLimitConfig.healthPerMinute,
+    }),
+  )
+
+  // Rate limit for Mailgun-compatible email sending endpoint
+  app.use(
+    '/v3/:domain/messages',
+    rateLimiter({
+      limit: rateLimitConfig.sendPerMinute,
+      handler: mailgunRateLimitHandler,
+    }),
+  )
+
+  // Rate limit for Universal API email endpoints
+  // Use single pattern to avoid double rate limiting on /api/v1/emails/batch
+  app.use(
+    '/api/v1/emails*',
+    rateLimiter({
+      limit: rateLimitConfig.sendPerMinute,
+      handler: universalApiRateLimitHandler,
+    }),
+  )
+
+  // Global rate limit for all other endpoints
+  app.use(
+    '/*',
+    rateLimiter({
+      limit: rateLimitConfig.globalPerMinute,
+      // Skip endpoints that have specific rate limits
+      skip: c => {
+        const path = c.req.path
+        return (
+          path === '/health' ||
+          /^\/v3\/[^/]+\/messages$/.test(path) ||
+          path.startsWith('/api/v1/emails')
+        )
+      },
+    }),
+  )
+
+  logger.info('Rate limiting enabled', {
+    sendPerMinute: rateLimitConfig.sendPerMinute,
+    healthPerMinute: rateLimitConfig.healthPerMinute,
+    globalPerMinute: rateLimitConfig.globalPerMinute,
+  })
+} else {
+  logger.warn('Rate limiting is disabled')
+}
 
 // Health check endpoint (no auth)
 app.get('/health', c => {

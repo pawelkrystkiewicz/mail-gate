@@ -45,11 +45,40 @@ Resend's batch API has different constraints. See [Resend documentation](https:/
 
 ## General
 
-### Rate Limiting
+### Request Rate Limiting (mail-gate)
 
-Each provider has different rate limits. mail-gate implements basic rate limiting via the `rateLimit` property on each provider, but this is a simple sequential approach rather than sophisticated throttling.
+mail-gate enforces per-IP rate limits to protect against abuse and resource exhaustion. The limits use a **sliding window algorithm** for smooth rate limiting (prevents burst traffic at window boundaries).
+
+| Endpoint | Default Limit | Purpose |
+|----------|---------------|---------|
+| `/v3/:domain/messages` | 60 req/min | Email sending (Mailgun API) |
+| `/api/v1/emails`, `/api/v1/emails/batch` | 60 req/min | Email sending (Universal API) |
+| `/health` | 120 req/min | Health checks (monitoring-friendly) |
+| All other endpoints | 200 req/min | Global fallback |
+
+**Response headers included:**
+- `X-RateLimit-Limit` — Maximum requests allowed
+- `X-RateLimit-Remaining` — Requests remaining in current window
+- `X-RateLimit-Reset` — Unix timestamp when the window resets
+- `Retry-After` — Seconds to wait (only on 429 responses)
+
+**Configuration:**
+```bash
+RATE_LIMIT_ENABLED=true           # Set to "false" to disable
+RATE_LIMIT_SEND_PER_MINUTE=60     # Email endpoint limit
+RATE_LIMIT_HEALTH_PER_MINUTE=120  # Health endpoint limit
+RATE_LIMIT_GLOBAL_PER_MINUTE=200  # Global fallback
+```
+
+**Proxy support:** mail-gate respects `X-Forwarded-For` and `X-Real-IP` headers for accurate client IP detection behind reverse proxies (Traefik, Nginx, etc.).
+
+### Provider Rate Limiting
+
+Each provider has different rate limits for their APIs. mail-gate implements provider-level rate limiting via the `rateLimit` property on each provider.
 
 | Provider | Configured Rate Limit | API Actual Limit |
 |----------|----------------------|------------------|
 | UniOne | 10 req/s | Varies by plan |
 | Resend | 10 req/s | Varies by plan |
+
+**Note:** Provider rate limits are separate from mail-gate's request rate limits. Even if mail-gate allows a request through, the downstream provider may reject it if you exceed their limits.
