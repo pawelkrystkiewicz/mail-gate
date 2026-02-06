@@ -38,8 +38,8 @@ class RateLimitStore {
   private store = new Map<string, SlidingWindowEntry>()
   private cleanupInterval: ReturnType<typeof setInterval>
 
-  constructor(cleanupIntervalMs = 60000) {
-    // Periodic cleanup of expired entries
+  constructor(cleanupIntervalMs = 30000) {
+    // Periodic cleanup of expired entries (every 30 seconds by default)
     this.cleanupInterval = setInterval(() => {
       this.cleanup()
     }, cleanupIntervalMs)
@@ -171,7 +171,10 @@ export function getClientIp(c: Context): string {
 
   // Fall back to direct connection IP
   // In Bun, we need to get this from the connection info
-  // For now, use a default that groups all direct connections
+  // Log warning since direct connections will share rate limits
+  logger.debug('No proxy headers found, using fallback IP identifier', {
+    note: 'All direct connections will share rate limits',
+  })
   return 'direct'
 }
 

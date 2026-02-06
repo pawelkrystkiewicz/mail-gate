@@ -78,15 +78,9 @@ if (rateLimitConfig.enabled) {
   )
 
   // Rate limit for Universal API email endpoints
+  // Use single pattern to avoid double rate limiting on /api/v1/emails/batch
   app.use(
-    '/api/v1/emails',
-    rateLimiter({
-      limit: rateLimitConfig.sendPerMinute,
-      handler: universalApiRateLimitHandler,
-    }),
-  )
-  app.use(
-    '/api/v1/emails/*',
+    '/api/v1/emails*',
     rateLimiter({
       limit: rateLimitConfig.sendPerMinute,
       handler: universalApiRateLimitHandler,
